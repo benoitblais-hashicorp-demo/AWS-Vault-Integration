@@ -62,6 +62,7 @@ jobs:
           method: jwt
           namespace: tfe_demo
           role: ${{ github.event.repository.name }}
+          audience: vault.workload.identity
           secrets: |
             terraform/creds/${{ github.event.repository.name }} token | TF_API_TOKEN
 

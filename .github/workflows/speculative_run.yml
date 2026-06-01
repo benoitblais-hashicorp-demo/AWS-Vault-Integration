@@ -42,15 +42,9 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TF_CLOUD_ORGANIZATION: "benoitblais-hashicorp"
+      TF_WORKSPACE: ${{ github.event.repository.name }}
       CONFIG_DIRECTORY: "./"
     steps:
-
-      - name: Configure dynamic environments
-        run: |
-          REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          REPO_NAME_LOWER=$(echo "$REPO_NAME" | tr '[:upper:]' '[:lower:]')
-          echo "TF_WORKSPACE=$REPO_NAME" >> $GITHUB_ENV
-          echo "REPO_NAME_LOWER=$REPO_NAME_LOWER" >> $GITHUB_ENV
 
       - name: Branch
         id: branch
@@ -67,10 +61,10 @@ jobs:
           url: ${{ secrets.VAULT_ADDR }}
           method: jwt
           namespace: admin/tfe_demo
-          role: ${{ env.REPO_NAME_LOWER }}
+          role: ${{ github.event.repository.name }}
           jwtGithubAudience: vault.workload.identity
           secrets: |
-            terraform/creds/${{ env.REPO_NAME_LOWER }} token | TF_API_TOKEN
+            terraform/creds/${{ github.event.repository.name }} token | TF_API_TOKEN
 
       - uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.3.2
         id: upload

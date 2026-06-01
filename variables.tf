@@ -1,0 +1,1 @@
+# Empty variables file needed for the run if any values are passed by HCP Terraform

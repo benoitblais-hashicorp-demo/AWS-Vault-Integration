@@ -1,0 +1,70 @@
+# This workflow runs on `issue_comment` with `terraform apply`.
+#
+# `HCP Terraform Apply Run` job uses `checkout` to download the content of the repository. It runs
+# `hashicorp/tfc-workflows-github/actions/upload-configuration` to creates a configuration version
+# and uploads the directory containing files for a specified HCP Terraform Workspace. Then, it
+# performs an API driven run in HCP Terraform, using a configuration version and the workspace's
+# current variables.
+#
+# Documentation
+# - https://github.com/actions/checkout
+# - https://github.com/hashicorp/tfc-workflows-github/tree/main/actions/upload-configuration
+# - https://github.com/hashicorp/tfc-workflows-github/tree/main/actions/create-run
+#
+# Prerequisites:
+# - A HCP Terraform workspace
+# - A HCP Terraform API token with required permissions
+#
+# HCP Terraform user API token stored as a GitHub secret (e.g. TF_API_TOKEN) in the repository.
+#   Documentation:
+#     - https://www.terraform.io/docs/cloud/users-teams-organizations/api-tokens.html
+#     - https://help.github.com/en/actions/configuring-and-managing-workflows/creating-and-storing-encrypted-secrets
+
+name: HCP Terraform Apply Run
+
+on:  # yamllint disable-line rule:truthy
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  hcp-terraform-apply-run:
+    name: HCP Terraform Apply Run
+    runs-on: ubuntu-latest
+    if: contains(github.event.comment.body, 'terraform apply')
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TF_CLOUD_ORGANIZATION: "benoitblais-hashicorp"
+      TF_API_TOKEN: ${{ secrets.TFE_TOKEN }}
+      TF_WORKSPACE: ${{ github.event.repository.name }}
+      CONFIG_DIRECTORY: "./"
+    steps:
+
+      - name: Branch
+        id: branch
+        run: |
+          PULL_URL=${{ github.event.issue.pull_request.url }}
+          Accept_Header="Accept: application/vnd.github.v3+json"
+          Auth_Header="Authorization: token $GITHUB_TOKEN"
+          Branch=$(curl -sS -H "$Auth_Header" -H "$Accept_Header" -L $PULL_URL | jq -r ' .head.ref' )
+          echo "Branch=${Branch}" >> "$GITHUB_OUTPUT"
+      
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.branch.outputs.branch }}
+
+      - uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.3.2
+        id: upload
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          directory: ${{ env.CONFIG_DIRECTORY }}
+
+      - uses: hashicorp/tfc-workflows-github/actions/create-run@v1.3.2
+        id: create-run
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.upload.outputs.configuration_version_id }}

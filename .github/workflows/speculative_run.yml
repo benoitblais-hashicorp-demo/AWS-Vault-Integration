@@ -1,0 +1,132 @@
+# This workflow runs on `pull_request`.
+#
+# `HCP Terraform Speculative Run` job uses `checkout` to download the content of the repository. It runs
+# `hashicorp/tfc-workflows-github/actions/upload-configuration` to creates a configuration version
+# and uploads the directory containing files for a specified HCP Terraform Workspace. Then, it
+# performs an API driven run for plan only in HCP Terraform, using a configuration version and the
+# workspace's current variables. Finally, it will add a comment to the pull request.
+#
+# Documentation
+# - https://github.com/actions/checkout
+# - https://github.com/hashicorp/tfc-workflows-github/tree/main/actions/upload-configuration
+# - https://github.com/hashicorp/tfc-workflows-github/tree/main/actions/create-run
+#
+# Prerequisites:
+# - A HCP Terraform workspace
+# - A HCP Terraform API token with required permissions
+#
+# HCP Terraform user API token stored as a GitHub secret (e.g. TFE_TOKEN) in the repository.
+#   Documentation:
+#     - https://www.terraform.io/docs/cloud/users-teams-organizations/api-tokens.html
+#     - https://help.github.com/en/actions/configuring-and-managing-workflows/creating-and-storing-encrypted-secrets
+
+name: HCP Terraform Speculative Run
+
+on:  # yamllint disable-line rule:truthy
+  pull_request: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write   # Required for Vault JWT/OIDC authentication
+  pull-requests: write
+
+jobs:
+  hcp-terraform-speculative-run:
+    name: HCP Terraform Speculative Run
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TF_CLOUD_ORGANIZATION: "benoitblais-hashicorp"
+      TF_WORKSPACE: ${{ github.event.repository.name }}
+      CONFIG_DIRECTORY: "./"
+    steps:
+
+      - name: Branch
+        id: branch
+        run: echo "branch=${GITHUB_HEAD_REF}" >> "$GITHUB_OUTPUT"
+      
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.branch.outputs.branch }}
+
+      - name: Retrieve HCP Terraform Token from Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: jwt
+          namespace: tfe_demo
+          role: ${{ github.event.repository.name }}
+          secrets: |
+            terraform/creds/${{ github.event.repository.name }} token | TF_API_TOKEN
+
+      - uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.3.2
+        id: upload
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          directory: ${{ env.CONFIG_DIRECTORY }}
+          speculative: true
+
+      - uses: hashicorp/tfc-workflows-github/actions/create-run@v1.3.2
+        id: run
+        continue-on-error: true
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
+          plan_only: true
+
+      - uses: hashicorp/tfc-workflows-github/actions/plan-output@v1.3.2
+        id: plan-output
+        with:
+          plan: ${{ steps.run.outputs.plan_id }}
+
+      ## REQUIRED: Workflow permissions: `Read and write permissions`
+      - uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // 1. Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('HCP Terraform Plan Output')
+            })
+            const output = `#### HCP Terraform Plan Output
+               \`\`\`\n
+               Plan: ${{ steps.plan-output.outputs.add }} to add, ${{ steps.plan-output.outputs.change }} to change, ${{ steps.plan-output.outputs.destroy }} to destroy.
+               \`\`\`
+               [HCP Terraform Plan](${{ steps.run.outputs.run_link }})
+               `
+            // 3. If we have a comment, update it, otherwise create a new one
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              })
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              })
+            }
+
+        ## Check Run Status, if not planned_and_finished fail the job
+      - id: hcp-terraform-check-run-status
+        if: ${{ steps.run.outputs.run_status != 'planned_and_finished'}}
+        run: |
+          echo "HCP Terraform Run Failed or Requires Further Attention"
+          echo "Run Status: '${{ steps.run.outputs.run_status }}'"
+          echo "${{ steps.run.outputs.run_link }}"
+          exit 1

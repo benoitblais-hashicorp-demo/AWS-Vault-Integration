@@ -39,6 +39,7 @@ jobs:
     name: HCP Terraform Speculative Run
     runs-on: ubuntu-latest
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TF_CLOUD_ORGANIZATION: "benoitblais-hashicorp"
       TF_WORKSPACE: ${{ github.event.repository.name }}

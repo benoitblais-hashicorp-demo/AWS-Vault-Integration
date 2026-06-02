@@ -21,7 +21,7 @@ data "aws_ami" "rhel9" {
 # VPC Configuration
 module "vpc" {
   source  = "app.terraform.io/benoitblais-hashicorp/vpc/aws"
-  version = "~> 5.0"
+  version = "0.0.1"
 
   name = "web-infra-vpc"
   cidr = var.vpc_cidr

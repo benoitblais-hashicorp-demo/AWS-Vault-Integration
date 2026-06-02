@@ -3,12 +3,12 @@ output "vpc_id" {
   value       = module.vpc.vpc_id
 }
 
+output "alb_dns_name" {
+  description = "The DNS name of the Application Load Balancer."
+  value       = module.alb.dns_name
+}
+
 output "web_server_id" {
   description = "The instance ID of the web server."
   value       = module.web_server.id
-}
-
-output "web_server_public_ip" {
-  description = "The public IP address of the web server."
-  value       = module.web_server.public_ip
 }

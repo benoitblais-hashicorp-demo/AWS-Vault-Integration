@@ -89,39 +89,95 @@ jobs:
       ## REQUIRED: Workflow permissions: `Read and write permissions`
       - uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
+        env:
+          TF_API_TOKEN: ${{ env.TF_API_TOKEN }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const runId = '${{ steps.run.outputs.run_id }}';
+            const runLink = '${{ steps.run.outputs.run_link }}';
+            const planAdd = '${{ steps.plan-output.outputs.add }}';
+            const planChange = '${{ steps.plan-output.outputs.change }}';
+            const planDestroy = '${{ steps.plan-output.outputs.destroy }}';
+            const commitSha = context.payload.pull_request.head.sha;
+            
+            // Native Fetch is available in Node 18+
+            const fetch = globalThis.fetch;
+            const res = await fetch(`https://app.terraform.io/api/v2/runs/${runId}`, {
+              headers: {
+                'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
+                'Content-Type': 'application/vnd.api+json'
+              }
+            });
+            const data = await res.json();
+            
+            let runStatus = 'Unknown';
+            let executionMode = 'Unknown';
+            let configVersion = 'Unknown';
+            let runSource = 'Unknown';
+            let durationStr = 'N/A';
+            
+            if (data && data.data && data.data.attributes) {
+              runStatus = data.data.attributes.status || runStatus;
+              executionMode = data.data.attributes['execution-mode'] || executionMode;
+              runSource = data.data.attributes.source || runSource;
+              
+              if (data.data.relationships && data.data.relationships['configuration-version']) {
+                configVersion = data.data.relationships['configuration-version'].data.id;
+              }
+              
+              const timestamps = data.data.attributes['status-timestamps'];
+              if (timestamps && timestamps['planned-at'] && timestamps['plan-queueable-at']) {
+                const planEnd = new Date(timestamps['planned-at']);
+                const planStart = new Date(timestamps['plan-queueable-at']);
+                const diffSecs = Math.round((planEnd - planStart) / 1000);
+                durationStr = `${diffSecs}s`;
+              }
+            }
+
+            const output = `### Run Summary - ${runStatus}
+            **Plan duration:** ${durationStr}
+            **Resources changed:** \`+${planAdd} ~${planChange} -${planDestroy}\`
+            **Actions:** 0 invoke
+            
+            [View in HCP Terraform](${runLink})
+            
+            <details><summary>Run Details</summary>
+            
+            - **Run ID:** \`${runId}\`
+            - **Configuration:** \`${configVersion}\`
+            - **Commit:** \`${commitSha}\`
+            - **Trigger:** \`${runSource}\`
+            - **Execution mode:** \`${executionMode}\`
+            
+            </details>
+            `;
+
             // 1. Retrieve existing bot comments for the PR
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-            })
+            });
             const botComment = comments.find(comment => {
-              return comment.user.type === 'Bot' && comment.body.includes('HCP Terraform Plan Output')
-            })
-            const output = `#### HCP Terraform Plan Output
-               \`\`\`\n
-               Plan: ${{ steps.plan-output.outputs.add }} to add, ${{ steps.plan-output.outputs.change }} to change, ${{ steps.plan-output.outputs.destroy }} to destroy.
-               \`\`\`
-               [HCP Terraform Plan](${{ steps.run.outputs.run_link }})
-               `
-            // 3. If we have a comment, update it, otherwise create a new one
+              return comment.user.type === 'Bot' && comment.body.includes('Run Summary -')
+            });
+            
+            // 2. If we have a comment, update it, otherwise create a new one
             if (botComment) {
-              github.rest.issues.updateComment({
+              await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: botComment.id,
                 body: output
-              })
+              });
             } else {
-              github.rest.issues.createComment({
+              await github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 body: output
-              })
+              });
             }
 
         ## Check Run Status, if not planned_and_finished fail the job

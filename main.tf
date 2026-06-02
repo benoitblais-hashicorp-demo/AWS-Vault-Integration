@@ -43,8 +43,8 @@ module "vpc" {
 
 # Security Group for the Application Load Balancer
 module "alb_sg" {
-  source  = "terraform-aws-modules/security-group/aws"
-  version = "~> 5.0"
+  source  = "app.terraform.io/benoitblais-hashicorp/security-group/aws"
+  version = "0.0.1"
 
   name        = "alb-sg"
   description = "Security group for ALB allowing public HTTP/HTTPS"
@@ -58,8 +58,8 @@ module "alb_sg" {
 
 # Security Group for the Web Server (Private)
 module "web_server_sg" {
-  source  = "terraform-aws-modules/security-group/aws"
-  version = "~> 5.0"
+  source  = "app.terraform.io/benoitblais-hashicorp/security-group/aws"
+  version = "0.0.1"
 
   name        = "web-server-sg"
   description = "Security group for web server allowing traffic only from ALB"

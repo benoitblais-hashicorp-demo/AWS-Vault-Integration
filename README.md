@@ -23,9 +23,9 @@ Version: ~> 9.0
 
 ### <a name="module_alb_sg"></a> [alb\_sg](#module\_alb\_sg)
 
-Source: terraform-aws-modules/security-group/aws
+Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
 
-Version: ~> 5.0
+Version: 0.0.1
 
 ### <a name="module_vpc"></a> [vpc](#module\_vpc)
 
@@ -41,9 +41,9 @@ Version: ~> 5.6
 
 ### <a name="module_web_server_sg"></a> [web\_server\_sg](#module\_web\_server\_sg)
 
-Source: terraform-aws-modules/security-group/aws
+Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
 
-Version: ~> 5.0
+Version: 0.0.1
 
 ## Required Inputs
 

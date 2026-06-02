@@ -162,7 +162,7 @@ jobs:
 
             | Policy checks | Estimated cost change | Plan duration | Resources changed | Actions |
             |:---:|:---:|:---:|:---:|:---:|
-            | **${policyChecksStr}** | **${costChangeStr}** | **${durationStr}** | \`i${planImport} +${planAdd} ~${planChange} -${planDestroy}\` | **0** invoke |
+            | **${policyChecksStr}** | **${costChangeStr}** | **${durationStr}** | i${planImport} +${planAdd} ~${planChange} -${planDestroy} | **0** invoke |
 
             [View in HCP Terraform](${runLink})
 
@@ -287,7 +287,7 @@ jobs:
             const planDestroy = '${{ steps.plan-output.outputs.destroy }}' || '0';
             const planImport = '${{ steps.plan-output.outputs.import }}' || '0';
 
-            const output = `# Terraform Plan Output\n\n**Resources:** \`${planAdd}\` to add, \`${planChange}\` to change, \`${planDestroy}\` to destroy, \`${planImport}\` to import | **Actions:** \`0\` to invoke\n\n<details><summary>View Plan</summary>\n\n${planOutputText}\n\n</details>`;
+            const output = `# Terraform Plan Output\n\n**Resources:** ${planAdd} to add, ${planChange} to change, ${planDestroy} to destroy, ${planImport} to import | **Actions:** 0 to invoke\n\n<details><summary>View Plan</summary>\n\n${planOutputText}\n\n</details>`;
             
             // Retrieve existing bot comments for the PR
             const { data: comments } = await github.rest.issues.listComments({
@@ -375,7 +375,7 @@ jobs:
             const deltaCostStr = parsedDelta >= 0 ? `+$${parsedDelta.toFixed(2)}` : `-$${Math.abs(parsedDelta).toFixed(2)}`;
             const proposedCostStr = `$${parseFloat(proposedCost).toFixed(2)}`;
             
-            let output = `# Cost Estimation Details\n\n**${matchedResources} of ${totalResources}** estimated - **${proposedCostStr}/month** \`${deltaCostStr}\`\n\n`;
+            let output = `# Cost Estimation Details\n\n**${matchedResources} of ${totalResources}** estimated - **${proposedCostStr}/month** ${deltaCostStr}\n\n`;
             
             if (!isAvailable) {
                output += `> *Note: Cost estimation is not available or not enabled for this workspace. Showing $0.00 estimates.*\n`;

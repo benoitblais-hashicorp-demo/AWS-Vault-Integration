@@ -99,6 +99,7 @@ jobs:
             const planAdd = '${{ steps.plan-output.outputs.add }}';
             const planChange = '${{ steps.plan-output.outputs.change }}';
             const planDestroy = '${{ steps.plan-output.outputs.destroy }}';
+            const planImport = '${{ steps.plan-output.outputs.import }}';
             const commitSha = context.payload.pull_request.head.sha;
             
             // Native Fetch is available in Node 18+
@@ -116,9 +117,12 @@ jobs:
             let configVersion = 'Unknown';
             let runSource = 'Unknown';
             let durationStr = 'N/A';
+            let policyChecksStr = 'N/A';
+            let costChangeStr = 'N/A';
             
             if (data && data.data && data.data.attributes) {
               runStatus = data.data.attributes.status || runStatus;
+              runStatus = runStatus.replace(/_/g, ' ');
               executionMode = data.data.attributes['execution-mode'] || executionMode;
               runSource = data.data.attributes.source || runSource;
               
@@ -133,13 +137,22 @@ jobs:
                 const diffSecs = Math.round((planEnd - planStart) / 1000);
                 durationStr = `${diffSecs}s`;
               }
+              
+              const policyStatus = data.data.relationships['policy-checks']?.data;
+              if (policyStatus && policyStatus.length > 0) {
+                 policyChecksStr = 'Passed'; // Or parse deeper if needed
+              } else {
+                 policyChecksStr = 'None';
+              }
+              costChangeStr = data.data.attributes['cost-estimate']?.['proposed-monthly-cost'] || 'N/A';
             }
 
             const output = `### Run Summary - ${runStatus}
-            **Plan duration:** ${durationStr}
-            **Resources changed:** \`+${planAdd} ~${planChange} -${planDestroy}\`
-            **Actions:** 0 invoke
-            
+
+            | Policy checks | Estimated cost change | Plan duration | Resources changed | Actions |
+            |:---:|:---:|:---:|:---:|:---:|
+            | **${policyChecksStr}** | **${costChangeStr}** | **${durationStr}** | \`i${planImport} +${planAdd} ~${planChange} -${planDestroy}\` | **0** invoke |
+
             [View in HCP Terraform](${runLink})
             
             <details><summary>Run Details</summary>

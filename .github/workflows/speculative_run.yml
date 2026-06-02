@@ -104,10 +104,10 @@ jobs:
 
             const runId = '${{ steps.run.outputs.run_id }}';
             const runLink = '${{ steps.run.outputs.run_link }}';
-            const planAdd = '${{ steps.plan-output.outputs.add }}';
-            const planChange = '${{ steps.plan-output.outputs.change }}';
-            const planDestroy = '${{ steps.plan-output.outputs.destroy }}';
-            const planImport = '${{ steps.plan-output.outputs.import }}';
+            const planAdd = '${{ steps.plan-output.outputs.add }}' || '0';
+            const planChange = '${{ steps.plan-output.outputs.change }}' || '0';
+            const planDestroy = '${{ steps.plan-output.outputs.destroy }}' || '0';
+            const planImport = '${{ steps.plan-output.outputs.import }}' || '0';
             const commitSha = context.payload.pull_request.head.sha;
             
             // Native Fetch is available in Node 18+
@@ -282,10 +282,10 @@ jobs:
                 planOutputText = "Plan ID not provided.";
             }
             
-            const planAdd = '${{ steps.plan-output.outputs.add }}';
-            const planChange = '${{ steps.plan-output.outputs.change }}';
-            const planDestroy = '${{ steps.plan-output.outputs.destroy }}';
-            const planImport = '${{ steps.plan-output.outputs.import }}';
+            const planAdd = '${{ steps.plan-output.outputs.add }}' || '0';
+            const planChange = '${{ steps.plan-output.outputs.change }}' || '0';
+            const planDestroy = '${{ steps.plan-output.outputs.destroy }}' || '0';
+            const planImport = '${{ steps.plan-output.outputs.import }}' || '0';
 
             const output = `# Terraform Plan Output\n\n**Resources:** \`${planAdd}\` to add, \`${planChange}\` to change, \`${planDestroy}\` to destroy, \`${planImport}\` to import | **Actions:** \`0\` to invoke\n\n<details><summary>View Plan</summary>\n\n${planOutputText}\n\n</details>`;
             
@@ -320,6 +320,7 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           TF_API_TOKEN: ${{ env.TF_API_TOKEN }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -330,7 +331,55 @@ jobs:
               if (extra) console.log(extra);
             }
 
-            const output = `# Cost Estimation Details\n\n_Cost estimation details will be populated here._`;
+            const runId = process.env.RUN_ID;
+            const fetch = globalThis.fetch;
+            
+            let matchedResources = 0;
+            let totalResources = 0;
+            let proposedCost = "0.0";
+            let deltaCost = "0.0";
+            let isAvailable = false;
+            
+            logMsg('INFO', `Fetching run details for Run ID: ${runId}`);
+            const runRes = await fetch(`https://app.terraform.io/api/v2/runs/${runId}`, {
+              headers: {
+                'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
+                'Content-Type': 'application/vnd.api+json'
+              }
+            });
+            const runData = await runRes.json();
+            const ceId = runData?.data?.relationships?.['cost-estimate']?.data?.id;
+
+            if (ceId) {
+              logMsg('INFO', `Fetching cost estimate details for ID: ${ceId}`);
+              const ceRes = await fetch(`https://app.terraform.io/api/v2/cost-estimates/${ceId}`, {
+                headers: {
+                  'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
+                  'Content-Type': 'application/vnd.api+json'
+                }
+              });
+              const ceData = await ceRes.json();
+              if (ceData && ceData.data && ceData.data.attributes) {
+                isAvailable = true;
+                proposedCost = ceData.data.attributes['proposed-monthly-cost'] || "0.0";
+                deltaCost = ceData.data.attributes['delta-monthly-cost'] || "0.0";
+                matchedResources = ceData.data.attributes['matched-resource-count'] || ceData.data.attributes['matched-resources-count'] || 0;
+                totalResources = ceData.data.attributes['total-resource-count'] || ceData.data.attributes['total-resources-count'] || 0;
+              }
+            } else {
+              logMsg('WARNING', 'No cost estimate ID found for this run');
+            }
+            
+            // Format delta cost to include leading '+' if positive
+            const parsedDelta = parseFloat(deltaCost);
+            const deltaCostStr = parsedDelta >= 0 ? `+$${parsedDelta.toFixed(2)}` : `-$${Math.abs(parsedDelta).toFixed(2)}`;
+            const proposedCostStr = `$${parseFloat(proposedCost).toFixed(2)}`;
+            
+            let output = `# Cost Estimation Details\n\n**${matchedResources} of ${totalResources}** estimated - **${proposedCostStr}/month** \`${deltaCostStr}\`\n\n`;
+            
+            if (!isAvailable) {
+               output += `> *Note: Cost estimation is not available or not enabled for this workspace. Showing $0.00 estimates.*\n`;
+            }
             
             // Retrieve existing bot comments for the PR
             const { data: comments } = await github.rest.issues.listComments({

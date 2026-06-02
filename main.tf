@@ -11,7 +11,7 @@ data "aws_ami" "rhel9" {
     name   = "name"
     values = ["hc-base-rhel-9-x86_64-*"]
   }
-  
+
   filter {
     name   = "state"
     values = ["available"]
@@ -88,10 +88,10 @@ module "web_server" {
 
   ami           = data.aws_ami.rhel9.id
   instance_type = "t3.micro"
-  
-  subnet_id                   = module.vpc.public_subnets[0]
-  vpc_security_group_ids      = [module.web_server_sg.security_group_id]
-  iam_instance_profile        = aws_iam_instance_profile.ssm_profile.name
+
+  subnet_id              = module.vpc.public_subnets[0]
+  vpc_security_group_ids = [module.web_server_sg.security_group_id]
+  iam_instance_profile   = aws_iam_instance_profile.ssm_profile.name
 
   # Security best practice: IMDSv2 enabled
   metadata_options = {

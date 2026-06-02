@@ -20,7 +20,7 @@ data "aws_ami" "rhel9" {
 
 # VPC Configuration
 module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
+  source  = "app.terraform.io/benoitblais-hashicorp/vpc/aws"
   version = "~> 5.0"
 
   name = "web-infra-vpc"
@@ -158,18 +158,10 @@ module "web_server" {
 
   ami           = data.aws_ami.rhel9.id
   instance_type = "t3.micro"
-<<<<<<< HEAD
-  
-  # Security best practice: Deploy to private subnet
-  subnet_id                   = module.vpc.private_subnets[0]
-  vpc_security_group_ids      = [module.web_server_sg.security_group_id]
-  iam_instance_profile        = aws_iam_instance_profile.ssm_profile.name
-=======
 
   subnet_id              = module.vpc.public_subnets[0]
   vpc_security_group_ids = [module.web_server_sg.security_group_id]
   iam_instance_profile   = aws_iam_instance_profile.ssm_profile.name
->>>>>>> 574c69217ec90c48ea09d32208c0489a9bccc549
 
   # Security best practice: IMDSv2 enabled
   metadata_options = {

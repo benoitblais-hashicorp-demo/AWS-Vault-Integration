@@ -259,10 +259,19 @@ jobs:
                 const logText = await logRes.text();
                 // Strip ANSI colors
                 let cleanLog = logText.replace(/\x1b\[[0-9;]*m/g, '');
-                if (cleanLog.length > 55000) {
-                  logMsg('WARNING', 'Plan log exceeds 55000 chars, truncating output');
-                  cleanLog = cleanLog.substring(0, 55000) + "\n... (truncated due to GitHub comment size limits)";
+                
+                // Truncate from the top to ensure the important bottom summary fits
+                if (cleanLog.length > 60000) {
+                  logMsg('WARNING', 'Plan log exceeds 60000 chars, truncating top output');
+                  cleanLog = "... (truncated due to GitHub comment size limits)\n" + cleanLog.slice(-60000);
                 }
+                
+                // Format diff for GitHub markdown readability
+                // Move diff characters to start of line
+                cleanLog = cleanLog.replace(/^([ \t]*)([-+~])/gm, '$2$1');
+                // Replace ~ with ! to colorize diffs correctly in GitHub
+                cleanLog = cleanLog.replace(/~/g, '!');
+                
                 planOutputText = `\`\`\`diff\n${cleanLog}\n\`\`\``;
               } else {
                 logMsg('WARNING', 'Plan log-read-url not available in plan details');
@@ -273,7 +282,12 @@ jobs:
                 planOutputText = "Plan ID not provided.";
             }
             
-            const output = `# Terraform Plan Output\n\n<details><summary>View Plan</summary>\n\n${planOutputText}\n\n</details>`;
+            const planAdd = '${{ steps.plan-output.outputs.add }}';
+            const planChange = '${{ steps.plan-output.outputs.change }}';
+            const planDestroy = '${{ steps.plan-output.outputs.destroy }}';
+            const planImport = '${{ steps.plan-output.outputs.import }}';
+
+            const output = `# Terraform Plan Output\n\n**Resources:** \`${planAdd}\` to add, \`${planChange}\` to change, \`${planDestroy}\` to destroy, \`${planImport}\` to import | **Actions:** \`0\` to invoke\n\n<details><summary>View Plan</summary>\n\n${planOutputText}\n\n</details>`;
             
             // Retrieve existing bot comments for the PR
             const { data: comments } = await github.rest.issues.listComments({

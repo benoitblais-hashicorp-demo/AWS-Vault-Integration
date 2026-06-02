@@ -105,10 +105,10 @@ module "alb" {
 
   target_groups = {
     web-tg = {
-      name             = "web-tg"
-      protocol         = "HTTP"
-      port             = 80
-      target_type      = "instance"
+      name              = "web-tg"
+      protocol          = "HTTP"
+      port              = 80
+      target_type       = "instance"
       create_attachment = false # We attach it below
     }
   }

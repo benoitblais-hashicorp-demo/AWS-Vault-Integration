@@ -87,7 +87,8 @@ jobs:
           plan: ${{ steps.run.outputs.plan_id }}
 
       ## REQUIRED: Workflow permissions: `Read and write permissions`
-      - uses: actions/github-script@v7
+      - name: 1. Fetch Run Summary and Create PR Comment
+        uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
         env:
           TF_API_TOKEN: ${{ env.TF_API_TOKEN }}
@@ -104,6 +105,8 @@ jobs:
             
             // Native Fetch is available in Node 18+
             const fetch = globalThis.fetch;
+
+            // Fetch Run Detail Logic
             const res = await fetch(`https://app.terraform.io/api/v2/runs/${runId}`, {
               headers: {
                 'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
@@ -154,7 +157,7 @@ jobs:
             | **${policyChecksStr}** | **${costChangeStr}** | **${durationStr}** | \`i${planImport} +${planAdd} ~${planChange} -${planDestroy}\` | **0** invoke |
 
             [View in HCP Terraform](${runLink})
-            
+
             <details><summary>Run Details</summary>
             
             - **Run ID:** \`${runId}\`
@@ -182,6 +185,125 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: botComment.id,
+                body: output
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              });
+            }
+
+      - name: 2. Fetch Plan Output and Create PR Comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          TF_API_TOKEN: ${{ env.TF_API_TOKEN }}
+          TF_CLOUD_ORGANIZATION: ${{ env.TF_CLOUD_ORGANIZATION }}
+          TF_WORKSPACE: ${{ env.TF_WORKSPACE }}
+          PLAN_ID: ${{ steps.run.outputs.plan_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const org = process.env.TF_CLOUD_ORGANIZATION;
+            const workspace = process.env.TF_WORKSPACE;
+            const planId = process.env.PLAN_ID;
+            
+            // Native Fetch is available in Node 18+
+            const fetch = globalThis.fetch;
+            
+            const wsRes = await fetch(`https://app.terraform.io/api/v2/organizations/${org}/workspaces/${workspace}`, {
+              headers: {
+                'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
+                'Content-Type': 'application/vnd.api+json'
+              }
+            });
+            const wsData = await wsRes.json();
+            const isStructured = wsData?.data?.attributes?.['structured-run-output-enabled'];
+            
+            let planOutputText = "";
+            if (isStructured) {
+              planOutputText = "The workspace is configured with Structured Run Output. The plan cannot be displayed as plain text in this comment.";
+            } else if (planId) {
+              const planRes = await fetch(`https://app.terraform.io/api/v2/plans/${planId}`, {
+                headers: {
+                  'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
+                  'Content-Type': 'application/vnd.api+json'
+                }
+              });
+              const planData = await planRes.json();
+              const logReadUrl = planData?.data?.attributes?.['log-read-url'];
+              if (logReadUrl) {
+                const logRes = await fetch(logReadUrl);
+                const logText = await logRes.text();
+                // Strip ANSI colors
+                let cleanLog = logText.replace(/\x1b\[[0-9;]*m/g, '');
+                if (cleanLog.length > 55000) {
+                  cleanLog = cleanLog.substring(0, 55000) + "\n... (truncated due to GitHub comment size limits)";
+                }
+                planOutputText = `\`\`\`diff\n${cleanLog}\n\`\`\``;
+              } else {
+                planOutputText = "Plan log not available.";
+              }
+            } else {
+                planOutputText = "Plan ID not provided.";
+            }
+            
+            const output = `### Terraform Plan Output\n\n<details><summary>View Plan</summary>\n\n${planOutputText}\n\n</details>`;
+            
+            // Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const planComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('### Terraform Plan Output')
+            });
+            
+            if (planComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: planComment.id,
+                body: output
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              });
+            }
+
+      - name: 3. Fetch Cost Estimation and Create PR Comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          TF_API_TOKEN: ${{ env.TF_API_TOKEN }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `### Cost Estimation Details\n\n_Cost estimation details will be populated here._`;
+            
+            // Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const costComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('### Cost Estimation Details')
+            });
+            
+            if (costComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: costComment.id,
                 body: output
               });
             } else {

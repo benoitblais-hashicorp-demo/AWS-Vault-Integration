@@ -51,7 +51,7 @@ jobs:
           Auth_Header="Authorization: token $GITHUB_TOKEN"
           Branch=$(curl -sS -H "$Auth_Header" -H "$Accept_Header" -L $PULL_URL | jq -r ' .head.ref' )
           echo "Branch=${Branch}" >> "$GITHUB_OUTPUT"
-      
+
       - name: Checkout
         uses: actions/checkout@v5
         with:

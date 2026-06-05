@@ -109,7 +109,7 @@ jobs:
             const planDestroy = '${{ steps.plan-output.outputs.destroy }}' || '0';
             const planImport = '${{ steps.plan-output.outputs.import }}' || '0';
             const commitSha = context.payload.pull_request.head.sha;
-            
+
             // Native Fetch is available in Node 18+
             const fetch = globalThis.fetch;
 
@@ -122,7 +122,7 @@ jobs:
               }
             });
             const data = await res.json();
-            
+
             let runStatus = 'Unknown';
             let executionMode = 'Unknown';
             let configVersion = 'Unknown';
@@ -130,17 +130,17 @@ jobs:
             let durationStr = 'N/A';
             let policyChecksStr = 'N/A';
             let costChangeStr = 'N/A';
-            
+
             if (data && data.data && data.data.attributes) {
               runStatus = data.data.attributes.status || runStatus;
               runStatus = runStatus.replace(/_/g, ' ');
               executionMode = data.data.attributes['execution-mode'] || executionMode;
               runSource = data.data.attributes.source || runSource;
-              
+
               if (data.data.relationships && data.data.relationships['configuration-version']) {
                 configVersion = data.data.relationships['configuration-version'].data.id;
               }
-              
+
               const timestamps = data.data.attributes['status-timestamps'];
               if (timestamps && timestamps['planned-at'] && timestamps['plan-queueable-at']) {
                 const planEnd = new Date(timestamps['planned-at']);
@@ -148,7 +148,7 @@ jobs:
                 const diffSecs = Math.round((planEnd - planStart) / 1000);
                 durationStr = `${diffSecs}s`;
               }
-              
+
               const policyStatus = data.data.relationships['policy-checks']?.data;
               if (policyStatus && policyStatus.length > 0) {
                  policyChecksStr = 'Passed'; // Or parse deeper if needed
@@ -167,13 +167,13 @@ jobs:
             [View in HCP Terraform](${runLink})
 
             <details><summary>Run Details</summary>
-            
+
             - **Run ID:** \`${runId}\`
             - **Configuration:** \`${configVersion}\`
             - **Commit:** \`${commitSha}\`
             - **Trigger:** \`${runSource}\`
             - **Execution mode:** \`${executionMode}\`
-            
+
             </details>
             `;
 
@@ -186,7 +186,7 @@ jobs:
             const botComment = comments.find(comment => {
               return comment.user.type === 'Bot' && comment.body.includes('# Summary -')
             });
-            
+
             // 2. If we have a comment, delete it, then create a new one
             if (botComment) {
               logMsg('INFO', `Deleting existing Run Summary comment (ID: ${botComment.id})`);
@@ -225,10 +225,10 @@ jobs:
             const org = process.env.TF_CLOUD_ORGANIZATION;
             const workspace = process.env.TF_WORKSPACE;
             const planId = process.env.PLAN_ID;
-            
+
             // Native Fetch is available in Node 18+
             const fetch = globalThis.fetch;
-            
+
             logMsg('INFO', `Fetching workspace details for ${workspace}`);
             const wsRes = await fetch(`https://app.terraform.io/api/v2/organizations/${org}/workspaces/${workspace}`, {
               headers: {
@@ -238,7 +238,7 @@ jobs:
             });
             const wsData = await wsRes.json();
             const isStructured = wsData?.data?.attributes?.['structured-run-output-enabled'];
-            
+
             let planOutputText = "";
             if (isStructured) {
               logMsg('INFO', 'Workspace is configured with Structured Run Output');
@@ -259,19 +259,19 @@ jobs:
                 const logText = await logRes.text();
                 // Strip ANSI colors
                 let cleanLog = logText.replace(/\x1b\[[0-9;]*m/g, '');
-                
+
                 // Truncate from the top to ensure the important bottom summary fits
                 if (cleanLog.length > 60000) {
                   logMsg('WARNING', 'Plan log exceeds 60000 chars, truncating top output');
                   cleanLog = "... (truncated due to GitHub comment size limits)\n" + cleanLog.slice(-60000);
                 }
-                
+
                 // Format diff for GitHub markdown readability
                 // Move diff characters to start of line
                 cleanLog = cleanLog.replace(/^([ \t]*)([-+~])/gm, '$2$1');
                 // Replace ~ with ! to colorize diffs correctly in GitHub
                 cleanLog = cleanLog.replace(/~/g, '!');
-                
+
                 planOutputText = `\`\`\`diff\n${cleanLog}\n\`\`\``;
               } else {
                 logMsg('WARNING', 'Plan log-read-url not available in plan details');
@@ -281,14 +281,14 @@ jobs:
                 logMsg('ERROR', 'PLAN_ID not provided to workflow environment');
                 planOutputText = "Plan ID not provided.";
             }
-            
+
             const planAdd = '${{ steps.plan-output.outputs.add }}' || '0';
             const planChange = '${{ steps.plan-output.outputs.change }}' || '0';
             const planDestroy = '${{ steps.plan-output.outputs.destroy }}' || '0';
             const planImport = '${{ steps.plan-output.outputs.import }}' || '0';
 
             const output = `# Terraform Plan Output\n\n**Resources:** ${planAdd} to add, ${planChange} to change, ${planDestroy} to destroy, ${planImport} to import | **Actions:** 0 to invoke\n\n<details><summary>View Plan</summary>\n\n${planOutputText}\n\n</details>`;
-            
+
             // Retrieve existing bot comments for the PR
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -298,7 +298,7 @@ jobs:
             const planComment = comments.find(comment => {
               return comment.user.type === 'Bot' && comment.body.includes('# Terraform Plan Output')
             });
-            
+
             if (planComment) {
               logMsg('INFO', `Deleting existing Plan Output comment (ID: ${planComment.id})`);
               await github.rest.issues.deleteComment({
@@ -333,13 +333,13 @@ jobs:
 
             const runId = process.env.RUN_ID;
             const fetch = globalThis.fetch;
-            
+
             let matchedResources = 0;
             let totalResources = 0;
             let proposedCost = "0.0";
             let deltaCost = "0.0";
             let isAvailable = false;
-            
+
             logMsg('INFO', `Fetching run details for Run ID: ${runId}`);
             const runRes = await fetch(`https://app.terraform.io/api/v2/runs/${runId}`, {
               headers: {
@@ -369,18 +369,18 @@ jobs:
             } else {
               logMsg('WARNING', 'No cost estimate ID found for this run');
             }
-            
+
             // Format delta cost to include leading '+' if positive
             const parsedDelta = parseFloat(deltaCost);
             const deltaCostStr = parsedDelta >= 0 ? `+$${parsedDelta.toFixed(2)}` : `-$${Math.abs(parsedDelta).toFixed(2)}`;
             const proposedCostStr = `$${parseFloat(proposedCost).toFixed(2)}`;
-            
+
             let output = `# Cost Estimation Details\n\n**${matchedResources} of ${totalResources}** estimated - **${proposedCostStr}/month** ${deltaCostStr}\n\n`;
-            
+
             if (!isAvailable) {
                output += `> *Note: Cost estimation is not available or not enabled for this workspace. Showing $0.00 estimates.*\n`;
             }
-            
+
             // Retrieve existing bot comments for the PR
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -390,7 +390,7 @@ jobs:
             const costComment = comments.find(comment => {
               return comment.user.type === 'Bot' && comment.body.includes('# Cost Estimation Details')
             });
-            
+
             if (costComment) {
               logMsg('INFO', `Deleting existing Cost Estimation comment (ID: ${costComment.id})`);
               await github.rest.issues.deleteComment({

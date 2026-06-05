@@ -5,7 +5,6 @@ exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 echo "Starting RHEL Web and DB initialization..."
 
 # 1. Update OS and install Python and PostgreSQL client
-dnf update -y
 dnf install -y postgresql python3 python3-pip
 
 # 1.5 Setup Vault OS Users and SSH Password Authentication

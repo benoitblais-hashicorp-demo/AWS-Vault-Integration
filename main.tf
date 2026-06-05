@@ -168,7 +168,7 @@ module "web_server" {
   name = "web-server"
 
   ami           = data.aws_ami.rhel9.id
-  instance_type = "t3.micro"
+  instance_type = "t3.small"
 
   # Inject startup script to seed the DB and install the web app
   user_data = templatefile("${path.module}/user_data.sh", {

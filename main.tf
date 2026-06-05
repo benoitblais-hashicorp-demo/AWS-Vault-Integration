@@ -178,6 +178,7 @@ module "web_server" {
     db_user     = aws_db_instance.postgres.username
     db_password = aws_db_instance.postgres.password
   })
+  user_data_replace_on_change = true
 
   subnet_id                   = module.vpc.public_subnets[0]
   associate_public_ip_address = true

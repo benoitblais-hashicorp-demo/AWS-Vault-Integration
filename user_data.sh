@@ -18,12 +18,14 @@ useradd -m -s /bin/bash appuser
 echo "appuser:Q&EJx%xx$^rj&xSUBC5#VVgh" | chpasswd
 
 # Enable Password Authentication for SSH so Vault can connect
-sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
-sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config.d/*.conf || true
+# sshd reads configuration files in alphabetical order and the FIRST value matched wins!
+# We must insert our override as 00-force-password-auth.conf so it evaluates before AWS cloud-init (e.g., 50-cloud-init.conf)
+echo "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/00-force-password-auth.conf
+echo "KbdInteractiveAuthentication yes" >> /etc/ssh/sshd_config.d/00-force-password-auth.conf
 
-# Force password authentication in a drop-in file to override AWS defaults
-echo "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/99-force-password-auth.conf
-echo "KbdInteractiveAuthentication yes" >> /etc/ssh/sshd_config.d/99-force-password-auth.conf
+# Also forcefully purge it from the main file just to be totally safe
+sed -i 's/^[#]*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+sed -i 's/^[#]*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/sshd_config.d/*.conf || true
 
 systemctl restart sshd
 

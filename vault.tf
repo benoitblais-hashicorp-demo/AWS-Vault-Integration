@@ -32,7 +32,14 @@ resource "vault_os_secret_backend" "os_backend" {
 }
 
 resource "time_sleep" "wait_for_web_server" {
-  depends_on      = [module.web_server]
+  depends_on = [module.web_server]
+
+  # Using triggers ensures that the sleep timer physically restarts
+  # anytime the EC2 instance ID changes due to recreation.
+  triggers = {
+    web_server_id = module.web_server.id
+  }
+
   create_duration = "240s"
 }
 
@@ -56,7 +63,7 @@ resource "vault_os_secret_backend_account" "direct" {
   host            = vault_os_secret_backend_host.web_server.name
   name            = "linuxadmin"
   username        = "linuxadmin"
-  password_wo     = "Mp^Y#WYbf4VEfkxM^^3Lf89I"
+  password_wo     = random_password.os_linuxadmin_password.result
   rotation_period = 86400
 }
 
@@ -67,7 +74,7 @@ resource "vault_os_secret_backend_account" "child" {
   host               = vault_os_secret_backend_host.web_server.name
   name               = "appuser"
   username           = "appuser"
-  password_wo        = "Q&EJx%xx$^rj&xSUBC5#VVgh"
+  password_wo        = random_password.os_appuser_password.result
   rotation_period    = 86400
   verify_connection  = false
   parent_account_ref = vault_os_secret_backend_account.direct.name

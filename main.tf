@@ -172,11 +172,13 @@ module "web_server" {
 
   # Inject startup script to seed the DB and install the web app
   user_data = templatefile("${path.module}/user_data.sh", {
-    db_host     = aws_db_instance.postgres.address
-    db_port     = aws_db_instance.postgres.port
-    db_name     = aws_db_instance.postgres.db_name
-    db_user     = aws_db_instance.postgres.username
-    db_password = aws_db_instance.postgres.password
+    db_host            = aws_db_instance.postgres.address
+    db_port            = aws_db_instance.postgres.port
+    db_name            = aws_db_instance.postgres.db_name
+    db_user            = aws_db_instance.postgres.username
+    db_password        = aws_db_instance.postgres.password
+    linuxadmin_initial = random_password.os_linuxadmin_password.result
+    appuser_initial    = random_password.os_appuser_password.result
   })
   user_data_replace_on_change = true
 
@@ -253,4 +255,17 @@ resource "random_password" "db_password" {
   length           = 24
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+# Generate passwords for OS users natively in Terraform
+resource "random_password" "os_linuxadmin_password" {
+  length           = 32
+  special          = true
+  override_special = "!@#$%^&*"
+}
+
+resource "random_password" "os_appuser_password" {
+  length           = 32
+  special          = true
+  override_special = "!@#$%^&*"
 }

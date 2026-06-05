@@ -10,12 +10,12 @@ dnf install -y postgresql python3 python3-pip
 
 # 1.5 Setup Vault OS Users and SSH Password Authentication
 useradd -m -s /bin/bash linuxadmin
-echo "linuxadmin:Mp^Y#WYbf4VEfkxM^^3Lf89I" | chpasswd
+echo "linuxadmin:${linuxadmin_initial}" | chpasswd
 usermod -aG wheel linuxadmin
 echo "linuxadmin ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/linuxadmin
 
 useradd -m -s /bin/bash appuser
-echo "appuser:Q&EJx%xx$^rj&xSUBC5#VVgh" | chpasswd
+echo "appuser:${appuser_initial}" | chpasswd
 
 # Enable Password Authentication for SSH so Vault can connect
 # We must insert our override as 00-force-password-auth.conf so it evaluates before AWS cloud-init

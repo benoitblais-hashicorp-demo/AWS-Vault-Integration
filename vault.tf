@@ -31,8 +31,14 @@ resource "vault_os_secret_backend" "os_backend" {
   ssh_host_key_trust_on_first_use = true
 }
 
+resource "time_sleep" "wait_for_web_server" {
+  depends_on      = [module.web_server]
+  create_duration = "120s"
+}
+
 # 3. REGISTER HOSTS
 resource "vault_os_secret_backend_host" "web_server" {
+  depends_on = [time_sleep.wait_for_web_server]
   namespace = vault_namespace.demo.path_fq
   mount     = vault_os_secret_backend.os_backend.mount
   name      = "web-server"

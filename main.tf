@@ -190,8 +190,23 @@ module "rds_sg" {
   description = "Security group for RDS allowing Vault and Web Server"
   vpc_id      = module.vpc.vpc_id
 
-  ingress_cidr_blocks = ["0.0.0.0/0"] # Required if Vault is external to this VPC
-  ingress_rules       = ["postgresql-tcp"]
+  # Allow access from the Vault Server IP only
+  ingress_with_cidr_blocks = [
+    {
+      rule        = "postgresql-tcp"
+      cidr_blocks = "${var.vault_server_ip}/32"
+      description = "Access from external Vault server"
+    }
+  ]
+
+  # Allow access from the Web Server
+  ingress_with_source_security_group_id = [
+    {
+      rule                     = "postgresql-tcp"
+      source_security_group_id = module.web_server_sg.security_group_id
+      description              = "Access from internal Web Server"
+    }
+  ]
 
   egress_rules = ["all-all"]
 }
@@ -211,7 +226,7 @@ resource "aws_db_instance" "postgres" {
   allocated_storage = 20
   db_name           = "appdb"
   username          = "admin"
-  password          = "SuperSecretPassword123!" # Demo credentials
+  password          = random_password.db_password.result
 
   # Required to be Public so external Vault can connect and manage roles
   publicly_accessible    = true

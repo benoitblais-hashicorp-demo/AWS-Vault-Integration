@@ -8,6 +8,21 @@ echo "Starting RHEL Web and DB initialization..."
 dnf update -y
 dnf install -y postgresql python3 python3-pip
 
+# 1.5 Setup Vault OS Users and SSH Password Authentication
+useradd -m -s /bin/bash linuxadmin
+echo "linuxadmin:Mp^Y#WYbf4VEfkxM^^3Lf89I" | chpasswd
+usermod -aG wheel linuxadmin
+echo "linuxadmin ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/linuxadmin
+
+useradd -m -s /bin/bash appuser
+echo "appuser:Q&EJx%xx$^rj&xSUBC5#VVgh" | chpasswd
+
+# Enable Password Authentication for SSH so Vault can connect
+sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+# Some RHEL/AWS AMIs have PasswordAuth in an included file:
+sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/*.conf || true
+systemctl restart sshd
+
 # 2. Install Flask and psycopg2 for the python web app
 pip3 install Flask psycopg2-binary
 

@@ -80,7 +80,9 @@ module "web_server_sg" {
   # Allow SSH from Vault Server (Temporary 0.0.0.0/0 to ensure avoiding dynamic IP drops)
   ingress_with_cidr_blocks = [
     {
-      rule        = "ssh-tcp"
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
       description = "SSH from Vault"
       cidr_blocks = "0.0.0.0/0"
     }

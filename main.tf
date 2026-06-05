@@ -221,7 +221,7 @@ resource "aws_db_subnet_group" "public" {
 resource "aws_db_instance" "postgres" {
   identifier        = "vault-demo-postgres"
   engine            = "postgres"
-  engine_version    = "15.7"
+  engine_version    = "15" # AWS will use the most robust available 15.x patch
   instance_class    = "db.t3.micro"
   allocated_storage = 20
   db_name           = "appdb"

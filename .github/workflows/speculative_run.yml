@@ -1,0 +1,417 @@
+# This workflow runs on `pull_request`.
+#
+# `HCP Terraform Speculative Run` job uses `checkout` to download the content of the repository. It runs
+# `hashicorp/tfc-workflows-github/actions/upload-configuration` to creates a configuration version
+# and uploads the directory containing files for a specified HCP Terraform Workspace. Then, it
+# performs an API driven run for plan only in HCP Terraform, using a configuration version and the
+# workspace's current variables. Finally, it will add a comment to the pull request.
+#
+# Documentation
+# - https://github.com/actions/checkout
+# - https://github.com/hashicorp/tfc-workflows-github/tree/main/actions/upload-configuration
+# - https://github.com/hashicorp/tfc-workflows-github/tree/main/actions/create-run
+#
+# Prerequisites:
+# - A HCP Terraform workspace
+# - A HCP Terraform API token with required permissions
+#
+# HCP Terraform user API token stored as a GitHub secret (e.g. TFE_TOKEN) in the repository.
+#   Documentation:
+#     - https://www.terraform.io/docs/cloud/users-teams-organizations/api-tokens.html
+#     - https://help.github.com/en/actions/configuring-and-managing-workflows/creating-and-storing-encrypted-secrets
+
+name: HCP Terraform Speculative Run
+
+on:  # yamllint disable-line rule:truthy
+  pull_request: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write   # Required for Vault JWT/OIDC authentication
+  pull-requests: write
+
+jobs:
+  hcp-terraform-speculative-run:
+    name: HCP Terraform Speculative Run
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TF_CLOUD_ORGANIZATION: "benoitblais-hashicorp"
+      TF_WORKSPACE: ${{ github.event.repository.name }}
+      CONFIG_DIRECTORY: "./"
+    steps:
+
+      - name: Branch
+        id: branch
+        run: echo "branch=${GITHUB_HEAD_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.branch.outputs.branch }}
+
+      - name: Retrieve HCP Terraform Token from Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: jwt
+          namespace: admin/tfe_demo
+          role: ${{ github.event.repository.name }}
+          jwtGithubAudience: vault.workload.identity
+          secrets: |
+            terraform/creds/${{ github.event.repository.name }} token | TF_API_TOKEN
+
+      - uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.3.2
+        id: upload
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          directory: ${{ env.CONFIG_DIRECTORY }}
+          speculative: true
+
+      - uses: hashicorp/tfc-workflows-github/actions/create-run@v1.3.2
+        id: run
+        continue-on-error: true
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
+          plan_only: true
+
+      - uses: hashicorp/tfc-workflows-github/actions/plan-output@v1.3.2
+        id: plan-output
+        with:
+          plan: ${{ steps.run.outputs.plan_id }}
+
+      ## REQUIRED: Workflow permissions: `Read and write permissions`
+      - name: 1. Fetch Run Summary and Create PR Comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          TF_API_TOKEN: ${{ env.TF_API_TOKEN }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            function logMsg(level, details, extra) {
+              const date = new Date().toISOString().replace('T', ' ').substring(0, 19);
+              const paddedLevel = level.padEnd(7, ' ');
+              console.log(`${date} | ${paddedLevel} | ${details}`);
+              if (extra) console.log(extra);
+            }
+
+            const runId = '${{ steps.run.outputs.run_id }}';
+            const runLink = '${{ steps.run.outputs.run_link }}';
+            const planAdd = '${{ steps.plan-output.outputs.add }}' || '0';
+            const planChange = '${{ steps.plan-output.outputs.change }}' || '0';
+            const planDestroy = '${{ steps.plan-output.outputs.destroy }}' || '0';
+            const planImport = '${{ steps.plan-output.outputs.import }}' || '0';
+            const commitSha = context.payload.pull_request.head.sha;
+            
+            // Native Fetch is available in Node 18+
+            const fetch = globalThis.fetch;
+
+            // Fetch Run Detail Logic
+            logMsg('INFO', `Fetching run details for Run ID: ${runId}`);
+            const res = await fetch(`https://app.terraform.io/api/v2/runs/${runId}`, {
+              headers: {
+                'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
+                'Content-Type': 'application/vnd.api+json'
+              }
+            });
+            const data = await res.json();
+            
+            let runStatus = 'Unknown';
+            let executionMode = 'Unknown';
+            let configVersion = 'Unknown';
+            let runSource = 'Unknown';
+            let durationStr = 'N/A';
+            let policyChecksStr = 'N/A';
+            let costChangeStr = 'N/A';
+            
+            if (data && data.data && data.data.attributes) {
+              runStatus = data.data.attributes.status || runStatus;
+              runStatus = runStatus.replace(/_/g, ' ');
+              executionMode = data.data.attributes['execution-mode'] || executionMode;
+              runSource = data.data.attributes.source || runSource;
+              
+              if (data.data.relationships && data.data.relationships['configuration-version']) {
+                configVersion = data.data.relationships['configuration-version'].data.id;
+              }
+              
+              const timestamps = data.data.attributes['status-timestamps'];
+              if (timestamps && timestamps['planned-at'] && timestamps['plan-queueable-at']) {
+                const planEnd = new Date(timestamps['planned-at']);
+                const planStart = new Date(timestamps['plan-queueable-at']);
+                const diffSecs = Math.round((planEnd - planStart) / 1000);
+                durationStr = `${diffSecs}s`;
+              }
+              
+              const policyStatus = data.data.relationships['policy-checks']?.data;
+              if (policyStatus && policyStatus.length > 0) {
+                 policyChecksStr = 'Passed'; // Or parse deeper if needed
+              } else {
+                 policyChecksStr = 'None';
+              }
+              costChangeStr = data.data.attributes['cost-estimate']?.['proposed-monthly-cost'] || 'N/A';
+            }
+
+            const output = `# Summary - ${runStatus}
+
+            | Policy checks | Estimated cost change | Plan duration | Resources changed | Actions |
+            |:---:|:---:|:---:|:---:|:---:|
+            | **${policyChecksStr}** | **${costChangeStr}** | **${durationStr}** | i${planImport} +${planAdd} ~${planChange} -${planDestroy} | **0** invoke |
+
+            [View in HCP Terraform](${runLink})
+
+            <details><summary>Run Details</summary>
+            
+            - **Run ID:** \`${runId}\`
+            - **Configuration:** \`${configVersion}\`
+            - **Commit:** \`${commitSha}\`
+            - **Trigger:** \`${runSource}\`
+            - **Execution mode:** \`${executionMode}\`
+            
+            </details>
+            `;
+
+            // 1. Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('# Summary -')
+            });
+            
+            // 2. If we have a comment, delete it, then create a new one
+            if (botComment) {
+              logMsg('INFO', `Deleting existing Run Summary comment (ID: ${botComment.id})`);
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id
+              });
+            }
+            logMsg('INFO', 'Creating new Run Summary comment');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: 2. Fetch Plan Output and Create PR Comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          TF_API_TOKEN: ${{ env.TF_API_TOKEN }}
+          TF_CLOUD_ORGANIZATION: ${{ env.TF_CLOUD_ORGANIZATION }}
+          TF_WORKSPACE: ${{ env.TF_WORKSPACE }}
+          PLAN_ID: ${{ steps.run.outputs.plan_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            function logMsg(level, details, extra) {
+              const date = new Date().toISOString().replace('T', ' ').substring(0, 19);
+              const paddedLevel = level.padEnd(7, ' ');
+              console.log(`${date} | ${paddedLevel} | ${details}`);
+              if (extra) console.log(extra);
+            }
+
+            const org = process.env.TF_CLOUD_ORGANIZATION;
+            const workspace = process.env.TF_WORKSPACE;
+            const planId = process.env.PLAN_ID;
+            
+            // Native Fetch is available in Node 18+
+            const fetch = globalThis.fetch;
+            
+            logMsg('INFO', `Fetching workspace details for ${workspace}`);
+            const wsRes = await fetch(`https://app.terraform.io/api/v2/organizations/${org}/workspaces/${workspace}`, {
+              headers: {
+                'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
+                'Content-Type': 'application/vnd.api+json'
+              }
+            });
+            const wsData = await wsRes.json();
+            const isStructured = wsData?.data?.attributes?.['structured-run-output-enabled'];
+            
+            let planOutputText = "";
+            if (isStructured) {
+              logMsg('INFO', 'Workspace is configured with Structured Run Output');
+              planOutputText = "The workspace is configured with Structured Run Output. The plan cannot be displayed as plain text in this comment.";
+            } else if (planId) {
+              logMsg('INFO', `Fetching plan details for plan ID: ${planId}`);
+              const planRes = await fetch(`https://app.terraform.io/api/v2/plans/${planId}`, {
+                headers: {
+                  'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
+                  'Content-Type': 'application/vnd.api+json'
+                }
+              });
+              const planData = await planRes.json();
+              const logReadUrl = planData?.data?.attributes?.['log-read-url'];
+              if (logReadUrl) {
+                logMsg('INFO', `Fetching raw plan log from log-read-url`);
+                const logRes = await fetch(logReadUrl);
+                const logText = await logRes.text();
+                // Strip ANSI colors
+                let cleanLog = logText.replace(/\x1b\[[0-9;]*m/g, '');
+                
+                // Truncate from the top to ensure the important bottom summary fits
+                if (cleanLog.length > 60000) {
+                  logMsg('WARNING', 'Plan log exceeds 60000 chars, truncating top output');
+                  cleanLog = "... (truncated due to GitHub comment size limits)\n" + cleanLog.slice(-60000);
+                }
+                
+                // Format diff for GitHub markdown readability
+                // Move diff characters to start of line
+                cleanLog = cleanLog.replace(/^([ \t]*)([-+~])/gm, '$2$1');
+                // Replace ~ with ! to colorize diffs correctly in GitHub
+                cleanLog = cleanLog.replace(/~/g, '!');
+                
+                planOutputText = `\`\`\`diff\n${cleanLog}\n\`\`\``;
+              } else {
+                logMsg('WARNING', 'Plan log-read-url not available in plan details');
+                planOutputText = "Plan log not available.";
+              }
+            } else {
+                logMsg('ERROR', 'PLAN_ID not provided to workflow environment');
+                planOutputText = "Plan ID not provided.";
+            }
+            
+            const planAdd = '${{ steps.plan-output.outputs.add }}' || '0';
+            const planChange = '${{ steps.plan-output.outputs.change }}' || '0';
+            const planDestroy = '${{ steps.plan-output.outputs.destroy }}' || '0';
+            const planImport = '${{ steps.plan-output.outputs.import }}' || '0';
+
+            const output = `# Terraform Plan Output\n\n**Resources:** ${planAdd} to add, ${planChange} to change, ${planDestroy} to destroy, ${planImport} to import | **Actions:** 0 to invoke\n\n<details><summary>View Plan</summary>\n\n${planOutputText}\n\n</details>`;
+            
+            // Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const planComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('# Terraform Plan Output')
+            });
+            
+            if (planComment) {
+              logMsg('INFO', `Deleting existing Plan Output comment (ID: ${planComment.id})`);
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: planComment.id
+              });
+            }
+            logMsg('INFO', 'Creating new Plan Output comment');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: 3. Fetch Cost Estimation and Create PR Comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          TF_API_TOKEN: ${{ env.TF_API_TOKEN }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            function logMsg(level, details, extra) {
+              const date = new Date().toISOString().replace('T', ' ').substring(0, 19);
+              const paddedLevel = level.padEnd(7, ' ');
+              console.log(`${date} | ${paddedLevel} | ${details}`);
+              if (extra) console.log(extra);
+            }
+
+            const runId = process.env.RUN_ID;
+            const fetch = globalThis.fetch;
+            
+            let matchedResources = 0;
+            let totalResources = 0;
+            let proposedCost = "0.0";
+            let deltaCost = "0.0";
+            let isAvailable = false;
+            
+            logMsg('INFO', `Fetching run details for Run ID: ${runId}`);
+            const runRes = await fetch(`https://app.terraform.io/api/v2/runs/${runId}`, {
+              headers: {
+                'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
+                'Content-Type': 'application/vnd.api+json'
+              }
+            });
+            const runData = await runRes.json();
+            const ceId = runData?.data?.relationships?.['cost-estimate']?.data?.id;
+
+            if (ceId) {
+              logMsg('INFO', `Fetching cost estimate details for ID: ${ceId}`);
+              const ceRes = await fetch(`https://app.terraform.io/api/v2/cost-estimates/${ceId}`, {
+                headers: {
+                  'Authorization': `Bearer ${process.env.TF_API_TOKEN}`,
+                  'Content-Type': 'application/vnd.api+json'
+                }
+              });
+              const ceData = await ceRes.json();
+              if (ceData && ceData.data && ceData.data.attributes) {
+                isAvailable = true;
+                proposedCost = ceData.data.attributes['proposed-monthly-cost'] || "0.0";
+                deltaCost = ceData.data.attributes['delta-monthly-cost'] || "0.0";
+                matchedResources = ceData.data.attributes['matched-resource-count'] || ceData.data.attributes['matched-resources-count'] || 0;
+                totalResources = ceData.data.attributes['total-resource-count'] || ceData.data.attributes['total-resources-count'] || 0;
+              }
+            } else {
+              logMsg('WARNING', 'No cost estimate ID found for this run');
+            }
+            
+            // Format delta cost to include leading '+' if positive
+            const parsedDelta = parseFloat(deltaCost);
+            const deltaCostStr = parsedDelta >= 0 ? `+$${parsedDelta.toFixed(2)}` : `-$${Math.abs(parsedDelta).toFixed(2)}`;
+            const proposedCostStr = `$${parseFloat(proposedCost).toFixed(2)}`;
+            
+            let output = `# Cost Estimation Details\n\n**${matchedResources} of ${totalResources}** estimated - **${proposedCostStr}/month** ${deltaCostStr}\n\n`;
+            
+            if (!isAvailable) {
+               output += `> *Note: Cost estimation is not available or not enabled for this workspace. Showing $0.00 estimates.*\n`;
+            }
+            
+            // Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const costComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('# Cost Estimation Details')
+            });
+            
+            if (costComment) {
+              logMsg('INFO', `Deleting existing Cost Estimation comment (ID: ${costComment.id})`);
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: costComment.id
+              });
+            }
+            logMsg('INFO', 'Creating new Cost Estimation comment');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+        ## Check Run Status, if not planned_and_finished fail the job
+      - id: hcp-terraform-check-run-status
+        if: ${{ steps.run.outputs.run_status != 'planned_and_finished'}}
+        run: |
+          echo "HCP Terraform Run Failed or Requires Further Attention"
+          echo "Run Status: '${{ steps.run.outputs.run_status }}'"
+          echo "${{ steps.run.outputs.run_link }}"
+          exit 1

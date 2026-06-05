@@ -17,8 +17,8 @@ POLICY
 
 # 2. ENGINE MOUNT
 resource "vault_mount" "os_mount" {
-  namespace   = vault_namespace.demo.path_fq
-  path        = "os"
+  namespace = vault_namespace.demo.path_fq
+  path      = "os"
   # Use the canonical plugin name. If the plugin is registered differently 
   # in your root catalog, you configure it here.
   type        = "vault-plugin-secrets-os"

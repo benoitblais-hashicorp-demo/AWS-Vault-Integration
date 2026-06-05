@@ -100,16 +100,16 @@ resource "vault_database_secret_backend_connection" "postgres" {
 
 # 3. Create a Role for dynamically generated App credentials (Read/Write)
 resource "vault_database_secret_backend_role" "webapp" {
-  namespace             = vault_namespace.db.path_fq
-  backend               = vault_mount.db.path
-  name                  = "webapp"
-  db_name               = vault_database_secret_backend_connection.postgres.name
-  creation_statements   = [
+  namespace = vault_namespace.db.path_fq
+  backend   = vault_mount.db.path
+  name      = "webapp"
+  db_name   = vault_database_secret_backend_connection.postgres.name
+  creation_statements = [
     "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';",
     "GRANT SELECT, UPDATE, INSERT, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
   ]
-  default_ttl           = 3600  # 1 hour
-  max_ttl               = 86400 # 24 hours
+  default_ttl = 3600  # 1 hour
+  max_ttl     = 86400 # 24 hours
 }
 
 # 4. Create an ACL policy to allow the application to generate these dynamic credentials

@@ -33,7 +33,7 @@ resource "vault_os_secret_backend" "os_backend" {
 
 resource "time_sleep" "wait_for_web_server" {
   depends_on      = [module.web_server]
-  create_duration = "120s"
+  create_duration = "240s"
 }
 
 # 3. REGISTER HOSTS

@@ -81,7 +81,7 @@ Description: The AWS region to deploy resources into.
 
 Type: `string`
 
-Default: `"us-east-1"`
+Default: `"ca-central-1"`
 
 ### <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr)
 

@@ -197,24 +197,24 @@ module "rds_sg" {
 }
 
 resource "aws_db_subnet_group" "public" {
-  name       = "public-db-subnets"
+  name = "public-db-subnets"
   # Placed in the public subnets so external Vault can reach it for JIT secret generation
-  subnet_ids = module.vpc.public_subnets 
+  subnet_ids = module.vpc.public_subnets
 }
 
 # AWS RDS PostgreSQL Instance
 resource "aws_db_instance" "postgres" {
-  identifier             = "vault-demo-postgres"
-  engine                 = "postgres"
-  engine_version         = "15.7"
-  instance_class         = "db.t3.micro"
-  allocated_storage      = 20
-  db_name                = "appdb"
-  username               = "admin"
-  password               = "SuperSecretPassword123!" # Demo credentials
-  
+  identifier        = "vault-demo-postgres"
+  engine            = "postgres"
+  engine_version    = "15.7"
+  instance_class    = "db.t3.micro"
+  allocated_storage = 20
+  db_name           = "appdb"
+  username          = "admin"
+  password          = "SuperSecretPassword123!" # Demo credentials
+
   # Required to be Public so external Vault can connect and manage roles
-  publicly_accessible    = true 
+  publicly_accessible    = true
   vpc_security_group_ids = [module.rds_sg.security_group_id]
   db_subnet_group_name   = aws_db_subnet_group.public.name
   skip_final_snapshot    = true

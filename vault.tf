@@ -19,7 +19,9 @@ POLICY
 resource "vault_mount" "os_mount" {
   namespace   = vault_namespace.demo.path_fq
   path        = "os"
-  type        = "os"
+  # Use the canonical plugin name. If the plugin is registered differently 
+  # in your root catalog, you configure it here.
+  type        = "vault-plugin-secrets-os"
   description = "OS secret backend"
 }
 
@@ -75,7 +77,7 @@ path "os/hosts/web-server/accounts/*/creds" {
 }
 POLICY
 }
-# ==========================================
+
 # VAULT DATABASE SECRETS ENGINE (POSTGRESQL)
 # ==========================================
 

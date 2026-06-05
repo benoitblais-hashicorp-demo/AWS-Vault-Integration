@@ -25,7 +25,6 @@ PasswordAuthentication yes
 KbdInteractiveAuthentication yes
 PubkeyAuthentication yes
 UsePAM yes
-AuthenticationMethods publickey,password publickey,keyboard-interactive
 Match Address *
     PasswordAuthentication yes
 EOF_SSH

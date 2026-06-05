@@ -77,6 +77,17 @@ module "web_server_sg" {
     }
   ]
 
+  # Allow SSH from Vault Server
+  ingress_with_cidr_blocks = [
+    {
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      description = "SSH from Vault"
+      cidr_blocks = "${var.vault_server_ip}/32"
+    }
+  ]
+
   egress_rules = ["all-all"]
 }
 
@@ -168,9 +179,10 @@ module "web_server" {
     db_password = aws_db_instance.postgres.password
   })
 
-  subnet_id              = module.vpc.private_subnets[0]
-  vpc_security_group_ids = [module.web_server_sg.security_group_id]
-  iam_instance_profile   = aws_iam_instance_profile.ssm_profile.name
+  subnet_id                   = module.vpc.public_subnets[0]
+  associate_public_ip_address = true
+  vpc_security_group_ids      = [module.web_server_sg.security_group_id]
+  iam_instance_profile        = aws_iam_instance_profile.ssm_profile.name
 
   # Security best practice: IMDSv2 enabled
   metadata_options = {

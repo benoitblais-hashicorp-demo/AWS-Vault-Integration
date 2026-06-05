@@ -36,8 +36,8 @@ resource "vault_os_secret_backend_host" "web_server" {
   namespace = vault_namespace.demo.path_fq
   mount     = vault_os_secret_backend.os_backend.mount
   name      = "web-server"
-  # Using the private IP of the created web server
-  address         = module.web_server.private_ip
+  # Using the public IP of the created web server so external Vault can reach it
+  address         = module.web_server.public_ip
   port            = 22
   password_policy = vault_password_policy.strict.name
 }

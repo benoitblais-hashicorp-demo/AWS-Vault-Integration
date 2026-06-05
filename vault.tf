@@ -50,6 +50,7 @@ resource "vault_os_secret_backend_host" "web_server" {
 
 # 4. PRIVILEGED PARENT ACCOUNTS
 resource "vault_os_secret_backend_account" "direct" {
+  depends_on      = [vault_os_secret_backend_host.web_server]
   namespace       = vault_namespace.demo.path_fq
   mount           = vault_os_secret_backend.os_backend.mount
   host            = vault_os_secret_backend_host.web_server.name

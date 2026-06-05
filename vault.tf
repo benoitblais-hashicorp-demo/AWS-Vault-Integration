@@ -40,7 +40,7 @@ resource "time_sleep" "wait_for_web_server" {
     web_server_id = module.web_server.id
   }
 
-  create_duration = "120s"
+  create_duration = "240s"
 }
 
 # 3. REGISTER HOSTS

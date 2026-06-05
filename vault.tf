@@ -39,9 +39,9 @@ resource "time_sleep" "wait_for_web_server" {
 # 3. REGISTER HOSTS
 resource "vault_os_secret_backend_host" "web_server" {
   depends_on = [time_sleep.wait_for_web_server]
-  namespace = vault_namespace.demo.path_fq
-  mount     = vault_os_secret_backend.os_backend.mount
-  name      = "web-server"
+  namespace  = vault_namespace.demo.path_fq
+  mount      = vault_os_secret_backend.os_backend.mount
+  name       = "web-server"
   # Using the public IP of the created web server so external Vault can reach it
   address         = module.web_server.public_ip
   port            = 22

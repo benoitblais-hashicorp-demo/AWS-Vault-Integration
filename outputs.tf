@@ -12,3 +12,8 @@ output "web_server_id" {
   description = "The instance ID of the web server."
   value       = module.web_server.id
 }
+
+output "rds_endpoint" {
+  description = "The endpoint of the RDS instance"
+  value       = aws_db_instance.postgres.endpoint
+}

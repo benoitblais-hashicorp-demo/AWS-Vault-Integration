@@ -159,7 +159,16 @@ module "web_server" {
   ami           = data.aws_ami.rhel9.id
   instance_type = "t3.micro"
 
-  subnet_id              = module.vpc.public_subnets[0]
+  # Inject startup script to seed the DB and install the web app
+  user_data = templatefile("${path.module}/user_data.sh", {
+    db_host     = aws_db_instance.postgres.address
+    db_port     = aws_db_instance.postgres.port
+    db_name     = aws_db_instance.postgres.db_name
+    db_user     = aws_db_instance.postgres.username
+    db_password = aws_db_instance.postgres.password
+  })
+
+  subnet_id              = module.vpc.private_subnets[0]
   vpc_security_group_ids = [module.web_server_sg.security_group_id]
   iam_instance_profile   = aws_iam_instance_profile.ssm_profile.name
 
@@ -170,4 +179,50 @@ module "web_server" {
     http_put_response_hop_limit = 1
     instance_metadata_tags      = "enabled"
   }
+}
+
+# RDS Security Group
+module "rds_sg" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "~> 5.0"
+
+  name        = "rds-sg"
+  description = "Security group for RDS allowing Vault and Web Server"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress_cidr_blocks = ["0.0.0.0/0"] # Required if Vault is external to this VPC
+  ingress_rules       = ["postgresql-tcp"]
+
+  egress_rules = ["all-all"]
+}
+
+resource "aws_db_subnet_group" "public" {
+  name       = "public-db-subnets"
+  # Placed in the public subnets so external Vault can reach it for JIT secret generation
+  subnet_ids = module.vpc.public_subnets 
+}
+
+# AWS RDS PostgreSQL Instance
+resource "aws_db_instance" "postgres" {
+  identifier             = "vault-demo-postgres"
+  engine                 = "postgres"
+  engine_version         = "15.7"
+  instance_class         = "db.t3.micro"
+  allocated_storage      = 20
+  db_name                = "appdb"
+  username               = "admin"
+  password               = "SuperSecretPassword123!" # Demo credentials
+  
+  # Required to be Public so external Vault can connect and manage roles
+  publicly_accessible    = true 
+  vpc_security_group_ids = [module.rds_sg.security_group_id]
+  db_subnet_group_name   = aws_db_subnet_group.public.name
+  skip_final_snapshot    = true
+}
+
+# Generate a high-entropy password for the RDS instance natively in Terraform
+resource "random_password" "db_password" {
+  length           = 24
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
 }

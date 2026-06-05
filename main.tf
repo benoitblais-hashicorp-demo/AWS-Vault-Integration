@@ -82,8 +82,8 @@ module "web_server_sg" {
 
 # Application Load Balancer
 module "alb" {
-  source  = "terraform-aws-modules/alb/aws"
-  version = "~> 9.0"
+  source  = "app.terraform.io/benoitblais-hashicorp/alb/aws"
+  version = "0.0.1"
 
   name    = "web-alb"
   vpc_id  = module.vpc.vpc_id

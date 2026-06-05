@@ -83,6 +83,14 @@ Type: `string`
 
 Default: `"ca-central-1"`
 
+### <a name="input_vault_server_ip"></a> [vault\_server\_ip](#input\_vault\_server\_ip)
+
+Description: The public IP address of the Vault server allowed to access the RDS database.
+
+Type: `string`
+
+Default: `"3.86.9.84"`
+
 ### <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr)
 
 Description: The CIDR block for the VPC.

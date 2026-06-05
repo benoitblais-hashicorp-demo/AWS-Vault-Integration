@@ -18,9 +18,13 @@ useradd -m -s /bin/bash appuser
 echo "appuser:Q&EJx%xx$^rj&xSUBC5#VVgh" | chpasswd
 
 # Enable Password Authentication for SSH so Vault can connect
-sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
-# Some RHEL/AWS AMIs have PasswordAuth in an included file:
-sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/*.conf || true
+sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config.d/*.conf || true
+
+# Force password authentication in a drop-in file to override AWS defaults
+echo "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/99-force-password-auth.conf
+echo "KbdInteractiveAuthentication yes" >> /etc/ssh/sshd_config.d/99-force-password-auth.conf
+
 systemctl restart sshd
 
 # 2. Install Flask and psycopg2 for the python web app

@@ -225,7 +225,7 @@ resource "aws_db_instance" "postgres" {
   instance_class    = "db.t3.micro"
   allocated_storage = 20
   db_name           = "appdb"
-  username          = "admin"
+  username          = "dbadmin"
   password          = random_password.db_password.result
 
   # Required to be Public so external Vault can connect and manage roles

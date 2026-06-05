@@ -16,9 +16,16 @@ POLICY
 }
 
 # 2. ENGINE MOUNT
+resource "vault_mount" "os_mount" {
+  namespace   = vault_namespace.demo.path_fq
+  path        = "os"
+  type        = "os"
+  description = "OS secret backend"
+}
+
 resource "vault_os_secret_backend" "os_backend" {
   namespace                       = vault_namespace.demo.path_fq
-  mount                           = "os"
+  mount                           = vault_mount.os_mount.path
   ssh_host_key_trust_on_first_use = true
 }
 

@@ -25,7 +25,7 @@ Version: ~> 9.0
 
 Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
 
-Version: 0.0.1
+Version: 0.0.2
 
 ### <a name="module_vpc"></a> [vpc](#module\_vpc)
 
@@ -43,7 +43,7 @@ Version: ~> 5.6
 
 Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
 
-Version: 0.0.1
+Version: 0.0.2
 
 ## Required Inputs
 

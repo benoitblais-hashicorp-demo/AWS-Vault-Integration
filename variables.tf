@@ -9,3 +9,14 @@ variable "vpc_cidr" {
   type        = string
   default     = "10.0.0.0/16"
 }
+
+variable "vault_address" {
+  description = "The URL of your Vault instance"
+  type        = string
+}
+
+variable "vault_token" {
+  description = "Vault token with administrative privileges"
+  type        = string
+  sensitive   = true
+}

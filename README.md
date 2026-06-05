@@ -17,9 +17,9 @@ The following Modules are called:
 
 ### <a name="module_alb"></a> [alb](#module\_alb)
 
-Source: terraform-aws-modules/alb/aws
+Source: app.terraform.io/benoitblais-hashicorp/alb/aws
 
-Version: ~> 9.0
+Version: 0.0.1
 
 ### <a name="module_alb_sg"></a> [alb\_sg](#module\_alb\_sg)
 

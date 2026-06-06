@@ -63,13 +63,13 @@ The following input variables are required:
 
 ### <a name="input_vault_address"></a> [vault\_address](#input\_vault\_address)
 
-Description: The URL of your Vault instance
+Description: (Required) The URL of your Vault instance.
 
 Type: `string`
 
 ### <a name="input_vault_token"></a> [vault\_token](#input\_vault\_token)
 
-Description: Vault token with administrative privileges
+Description: (Required) Vault token with administrative privileges.
 
 Type: `string`
 
@@ -79,7 +79,7 @@ The following input variables are optional (have default values):
 
 ### <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region)
 
-Description: The AWS region to deploy resources into.
+Description: (Optional) The AWS region to deploy resources into.
 
 Type: `string`
 
@@ -87,7 +87,7 @@ Default: `"ca-central-1"`
 
 ### <a name="input_vault_server_ip"></a> [vault\_server\_ip](#input\_vault\_server\_ip)
 
-Description: The public IP address of the Vault server allowed to access the RDS database.
+Description: (Optional) The public IP address of the Vault server allowed to access the RDS database.
 
 Type: `string`
 
@@ -95,11 +95,19 @@ Default: `"3.86.9.84"`
 
 ### <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr)
 
-Description: The CIDR block for the VPC.
+Description: (Optional) The CIDR block for the VPC.
 
 Type: `string`
 
 Default: `"10.0.0.0/16"`
+
+### <a name="input_vpc_name"></a> [vpc\_name](#input\_vpc\_name)
+
+Description: (Optional) The name of the VPC.
+
+Type: `string`
+
+Default: `"web-infra-vpc"`
 
 ## Resources
 
@@ -167,6 +175,14 @@ Description: The endpoint of the RDS instance
 ### <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id)
 
 Description: The ID of the VPC.
+
+### <a name="output_vpc_private_subnets"></a> [vpc\_private\_subnets](#output\_vpc\_private\_subnets)
+
+Description: List of private subnets in the VPC.
+
+### <a name="output_vpc_public_subnets"></a> [vpc\_public\_subnets](#output\_vpc\_public\_subnets)
+
+Description: List of public subnets in the VPC.
 
 ### <a name="output_web_dynamic_id"></a> [web\_dynamic\_id](#output\_web\_dynamic\_id)
 

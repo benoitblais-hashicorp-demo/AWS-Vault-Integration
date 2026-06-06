@@ -139,6 +139,10 @@ The following outputs are exported:
 
 Description: The DNS name of the Application Load Balancer.
 
+### <a name="output_linuxadmin_password"></a> [linuxadmin\_password](#output\_linuxadmin\_password)
+
+Description: The auto-generated initial password for the linuxadmin OS user
+
 ### <a name="output_rds_endpoint"></a> [rds\_endpoint](#output\_rds\_endpoint)
 
 Description: The endpoint of the RDS instance
@@ -150,6 +154,10 @@ Description: The ID of the VPC.
 ### <a name="output_web_server_id"></a> [web\_server\_id](#output\_web\_server\_id)
 
 Description: The instance ID of the web server.
+
+### <a name="output_web_server_public_ip"></a> [web\_server\_public\_ip](#output\_web\_server\_public\_ip)
+
+Description: The public IP of the web server
 
 <!-- markdownlint-enable -->
 <!-- END_TF_DOCS -->

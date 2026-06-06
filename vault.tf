@@ -32,7 +32,7 @@ resource "vault_os_secret_backend" "os_backend" {
 }
 
 resource "time_sleep" "wait_for_web_dynamic" {
-  depends_on = [module.web_server]
+  depends_on = [module.web_dynamic]
 
   # Using triggers ensures that the sleep timer physically restarts
   # anytime the EC2 instance ID changes due to recreation.
@@ -44,7 +44,7 @@ resource "time_sleep" "wait_for_web_dynamic" {
 }
 
 # 3. REGISTER HOSTS
-resource "vault_os_secret_backend_host" "web_server" {
+resource "vault_os_secret_backend_host" "web_dynamic" {
   depends_on = [time_sleep.wait_for_web_dynamic]
   namespace  = vault_namespace.demo.path_fq
   mount      = vault_os_secret_backend.os_backend.mount
@@ -57,10 +57,10 @@ resource "vault_os_secret_backend_host" "web_server" {
 
 # 4. PRIVILEGED PARENT ACCOUNTS
 resource "vault_os_secret_backend_account" "direct" {
-  depends_on      = [vault_os_secret_backend_host.web_server]
+  depends_on      = [vault_os_secret_backend_host.web_dynamic]
   namespace       = vault_namespace.demo.path_fq
   mount           = vault_os_secret_backend.os_backend.mount
-  host            = vault_os_secret_backend_host.web_server.name
+  host            = vault_os_secret_backend_host.web_dynamic.name
   name            = "linuxadmin"
   username        = "linuxadmin"
   password_wo     = random_password.os_linuxadmin_password.result
@@ -71,7 +71,7 @@ resource "vault_os_secret_backend_account" "direct" {
 resource "vault_os_secret_backend_account" "child" {
   namespace          = vault_namespace.demo.path_fq
   mount              = vault_os_secret_backend.os_backend.mount
-  host               = vault_os_secret_backend_host.web_server.name
+  host               = vault_os_secret_backend_host.web_dynamic.name
   name               = "appuser"
   username           = "appuser"
   password_wo        = random_password.os_appuser_password.result

@@ -53,7 +53,7 @@ resource "vault_pki_external_ca_secret_backend_order_certificate" "web" {
 
 # 9. Upload the Let's Encrypt Certificate into AWS Certificate Manager
 resource "aws_acm_certificate" "web" {
-  private_key       = vault_pki_external_ca_secret_backend_order.web.private_key
+  private_key       = vault_pki_external_ca_secret_backend_order_certificate.web.private_key
   certificate_body  = vault_pki_external_ca_secret_backend_order_certificate.web.certificate
   certificate_chain = vault_pki_external_ca_secret_backend_order_certificate.web.ca_chain
 

@@ -154,7 +154,7 @@ module "web_dynamic" {
   instance_type = "t3.small"
 
   # Inject startup script to seed the DB and install the web app
-  user_data = templatefile("${path.module}/user_data.sh", {
+  user_data = templatefile("${path.module}/scripts/bootstrap_web-dynamic.sh", {
     db_host            = aws_db_instance.db_dynamic.address
     db_port            = aws_db_instance.db_dynamic.port
     db_name            = aws_db_instance.db_dynamic.db_name

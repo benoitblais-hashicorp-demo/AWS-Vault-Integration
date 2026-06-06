@@ -131,7 +131,7 @@ The following resources are used by this module:
 - [vault_os_secret_backend.os_backend](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend) (resource)
 - [vault_os_secret_backend_account.child](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_account) (resource)
 - [vault_os_secret_backend_account.direct](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_account) (resource)
-- [vault_os_secret_backend_host.web_server](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_host) (resource)
+- [vault_os_secret_backend_host.web_dynamic](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_host) (resource)
 - [vault_password_policy.strict](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/password_policy) (resource)
 - [vault_pki_external_ca_secret_backend_acme_account.lets_encrypt](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_acme_account) (resource)
 - [vault_pki_external_ca_secret_backend_order.web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order) (resource)

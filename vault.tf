@@ -40,7 +40,7 @@ resource "time_sleep" "wait_for_web_dynamic" {
     web_dynamic_id = module.web_dynamic.id
   }
 
-  create_duration = "240s"
+  create_duration = "300s"
 }
 
 # 3. REGISTER HOSTS

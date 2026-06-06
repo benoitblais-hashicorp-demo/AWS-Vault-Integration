@@ -56,6 +56,9 @@ module "alb_dynamic" {
   name    = "alb-dynamic"
   vpc_id  = module.vpc.vpc_id
   subnets = module.vpc.public_subnets
+  
+  # Allow Terraform to delete this ALB if we destroy the environment
+  enable_deletion_protection = false
 
   # Ensure the security group is correctly passed
   security_groups = [module.alb_dynamic_sg.security_group_id]

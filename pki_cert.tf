@@ -55,7 +55,7 @@ resource "vault_pki_external_ca_secret_backend_order_certificate" "web" {
 resource "aws_acm_certificate" "web" {
   private_key       = vault_pki_external_ca_secret_backend_order_certificate.web.private_key
   certificate_body  = vault_pki_external_ca_secret_backend_order_certificate.web.certificate
-  certificate_chain = vault_pki_external_ca_secret_backend_order_certificate.web.ca_chain
+  certificate_chain = join("\n", vault_pki_external_ca_secret_backend_order_certificate.web.ca_chain)
 
   tags = {
     Name = "vault-acme-cert"

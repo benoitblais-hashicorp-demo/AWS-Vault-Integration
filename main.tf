@@ -1,7 +1,3 @@
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
 # Fetch the most recent private RHEL 9 AMI
 data "aws_ami" "rhel9" {
   most_recent = true
@@ -18,35 +14,12 @@ data "aws_ami" "rhel9" {
   }
 }
 
-# VPC Configuration
-module "vpc" {
-  source  = "app.terraform.io/benoitblais-hashicorp/vpc/aws"
-  version = "0.0.1"
-
-  name = "web-infra-vpc"
-  cidr = var.vpc_cidr
-
-  azs             = slice(data.aws_availability_zones.available.names, 0, 2)
-  public_subnets  = [for k, v in slice(data.aws_availability_zones.available.names, 0, 2) : cidrsubnet(var.vpc_cidr, 8, k + 1)]
-  private_subnets = [for k, v in slice(data.aws_availability_zones.available.names, 0, 2) : cidrsubnet(var.vpc_cidr, 8, k + 10)]
-
-  # Public subnets need to auto-assign public IPs for ALB and NAT GW
-  map_public_ip_on_launch = true
-
-  # Enable NAT Gateway for the private subnets to reach out (patching, Vault, etc.)
-  enable_nat_gateway     = true
-  single_nat_gateway     = true # Cost savings: 1 NAT GW for the demo instead of 1 per AZ
-  one_nat_gateway_per_az = false
-
-  enable_vpn_gateway = false
-}
-
 # Security Group for the Application Load Balancer
-module "alb_sg" {
+module "alb_dynamic_sg" {
   source  = "app.terraform.io/benoitblais-hashicorp/security-group/aws"
   version = "0.0.2"
 
-  name        = "alb-sg"
+  name        = "alb-dynamic-sg"
   description = "Security group for ALB allowing public HTTP/HTTPS"
   vpc_id      = module.vpc.vpc_id
 
@@ -57,11 +30,11 @@ module "alb_sg" {
 }
 
 # Security Group for the Web Server (Private)
-module "web_server_sg" {
+module "web_dynamic_sg" {
   source  = "app.terraform.io/benoitblais-hashicorp/security-group/aws"
   version = "0.0.2"
 
-  name        = "web-server-sg"
+  name        = "web-dynamic-sg"
   description = "Security group for web server allowing traffic only from ALB"
   vpc_id      = module.vpc.vpc_id
 
@@ -69,11 +42,11 @@ module "web_server_sg" {
   ingress_with_source_security_group_id = [
     {
       rule                     = "http-80-tcp"
-      source_security_group_id = module.alb_sg.security_group_id
+      source_security_group_id = module.alb_dynamic_sg.security_group_id
     },
     {
       rule                     = "https-443-tcp"
-      source_security_group_id = module.alb_sg.security_group_id
+      source_security_group_id = module.alb_dynamic_sg.security_group_id
     }
   ]
 
@@ -92,31 +65,41 @@ module "web_server_sg" {
 }
 
 # Application Load Balancer
-module "alb" {
+module "alb_dynamic" {
   source  = "app.terraform.io/benoitblais-hashicorp/alb/aws"
   version = "0.0.1"
 
-  name    = "web-alb"
+  name    = "alb-dynamic"
   vpc_id  = module.vpc.vpc_id
   subnets = module.vpc.public_subnets
 
   # Ensure the security group is correctly passed
-  security_groups = [module.alb_sg.security_group_id]
+  security_groups = [module.alb_dynamic_sg.security_group_id]
 
   # For a demo, stick to HTTP to start. HTTPS can be added later when we get Vault certificates
   listeners = {
     http-80 = {
       port     = 80
       protocol = "HTTP"
+      redirect = {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+    https-443 = {
+      port            = 443
+      protocol        = "HTTPS"
+      certificate_arn = aws_acm_certificate.web.arn
       forward = {
-        target_group_key = "web-tg"
+        target_group_key = "web-dynamic-tg"
       }
     }
   }
 
   target_groups = {
     web-tg = {
-      name              = "web-tg"
+      name              = "web-dynamic-tg"
       protocol          = "HTTP"
       port              = 80
       target_type       = "instance"
@@ -127,14 +110,14 @@ module "alb" {
 
 # Attach EC2 Instance to the ALB Target Group
 resource "aws_lb_target_group_attachment" "web_server" {
-  target_group_arn = module.alb.target_groups["web-tg"].arn
-  target_id        = module.web_server.id
+  target_group_arn = module.alb_dynamic.target_groups["web-dynamic-tg"].arn
+  target_id        = module.web_dynamic.id
   port             = 80
 }
 
 # IAM Role for SSM Session Manager (Security Best Practice: No inbound SSH)
 resource "aws_iam_role" "ssm_role" {
-  name = "web_server_ssm_role"
+  name = "web_dynamic_ssm_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -156,27 +139,27 @@ resource "aws_iam_role_policy_attachment" "ssm_core" {
 }
 
 resource "aws_iam_instance_profile" "ssm_profile" {
-  name = "web_server_ssm_profile"
+  name = "web_dynamic_ssm_profile"
   role = aws_iam_role.ssm_role.name
 }
 
 # EC2 Instance
-module "web_server" {
+module "web_dynamic" {
   source  = "terraform-aws-modules/ec2-instance/aws"
   version = "~> 5.6"
 
-  name = "web-server"
+  name = "web-dynamic"
 
   ami           = data.aws_ami.rhel9.id
   instance_type = "t3.small"
 
   # Inject startup script to seed the DB and install the web app
   user_data = templatefile("${path.module}/user_data.sh", {
-    db_host            = aws_db_instance.postgres.address
-    db_port            = aws_db_instance.postgres.port
-    db_name            = aws_db_instance.postgres.db_name
-    db_user            = aws_db_instance.postgres.username
-    db_password        = aws_db_instance.postgres.password
+    db_host            = aws_db_instance.db_dynamic.address
+    db_port            = aws_db_instance.db_dynamic.port
+    db_name            = aws_db_instance.db_dynamic.db_name
+    db_user            = aws_db_instance.db_dynamic.username
+    db_password        = aws_db_instance.db_dynamic.password
     linuxadmin_initial = random_password.os_linuxadmin_password.result
     appuser_initial    = random_password.os_appuser_password.result
   })
@@ -184,7 +167,7 @@ module "web_server" {
 
   subnet_id                   = module.vpc.public_subnets[0]
   associate_public_ip_address = true
-  vpc_security_group_ids      = [module.web_server_sg.security_group_id]
+  vpc_security_group_ids      = [module.web_dynamic_sg.security_group_id]
   iam_instance_profile        = aws_iam_instance_profile.ssm_profile.name
 
   # Security best practice: IMDSv2 enabled
@@ -197,11 +180,11 @@ module "web_server" {
 }
 
 # RDS Security Group
-module "rds_sg" {
+module "db_dynamic_sg" {
   source  = "terraform-aws-modules/security-group/aws"
   version = "~> 5.0"
 
-  name        = "rds-sg"
+  name        = "db-dynamic-sg"
   description = "Security group for RDS allowing Vault and Web Server"
   vpc_id      = module.vpc.vpc_id
 
@@ -218,7 +201,7 @@ module "rds_sg" {
   ingress_with_source_security_group_id = [
     {
       rule                     = "postgresql-tcp"
-      source_security_group_id = module.web_server_sg.security_group_id
+      source_security_group_id = module.web_dynamic_sg.security_group_id
       description              = "Access from internal Web Server"
     }
   ]
@@ -233,7 +216,7 @@ resource "aws_db_subnet_group" "public" {
 }
 
 # AWS RDS PostgreSQL Instance
-resource "aws_db_instance" "postgres" {
+resource "aws_db_instance" "db_dynamic" {
   identifier        = "vault-demo-postgres"
   engine            = "postgres"
   engine_version    = "15" # AWS will use the most robust available 15.x patch
@@ -245,7 +228,7 @@ resource "aws_db_instance" "postgres" {
 
   # Required to be Public so external Vault can connect and manage roles
   publicly_accessible    = true
-  vpc_security_group_ids = [module.rds_sg.security_group_id]
+  vpc_security_group_ids = [module.db_dynamic_sg.security_group_id]
   db_subnet_group_name   = aws_db_subnet_group.public.name
   skip_final_snapshot    = true
 }

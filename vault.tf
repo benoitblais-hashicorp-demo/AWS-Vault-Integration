@@ -31,13 +31,13 @@ resource "vault_os_secret_backend" "os_backend" {
   ssh_host_key_trust_on_first_use = true
 }
 
-resource "time_sleep" "wait_for_web_server" {
+resource "time_sleep" "wait_for_web_dynamic" {
   depends_on = [module.web_server]
 
   # Using triggers ensures that the sleep timer physically restarts
   # anytime the EC2 instance ID changes due to recreation.
   triggers = {
-    web_server_id = module.web_server.id
+    web_dynamic_id = module.web_dynamic.id
   }
 
   create_duration = "240s"
@@ -45,12 +45,12 @@ resource "time_sleep" "wait_for_web_server" {
 
 # 3. REGISTER HOSTS
 resource "vault_os_secret_backend_host" "web_server" {
-  depends_on = [time_sleep.wait_for_web_server]
+  depends_on = [time_sleep.wait_for_web_dynamic]
   namespace  = vault_namespace.demo.path_fq
   mount      = vault_os_secret_backend.os_backend.mount
-  name       = "web-server"
+  name       = "web-dynamic"
   # Using the public IP of the created web server so external Vault can reach it
-  address         = module.web_server.public_ip
+  address         = module.web_dynamic.public_ip
   port            = 22
   password_policy = vault_password_policy.strict.name
 }
@@ -111,13 +111,13 @@ resource "vault_mount" "db" {
 resource "vault_database_secret_backend_connection" "postgres" {
   namespace     = vault_namespace.db.path_fq
   backend       = vault_mount.db.path
-  name          = "aws-rds-postgres"
+  name          = "aws-rds-db-dynamic"
   allowed_roles = ["readonly", "webapp"]
 
   postgresql {
-    connection_url = "postgresql://{{username}}:{{password}}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}"
-    username       = aws_db_instance.postgres.username
-    password       = aws_db_instance.postgres.password
+    connection_url = "postgresql://{{username}}:{{password}}@${aws_db_instance.db_dynamic.endpoint}/${aws_db_instance.db_dynamic.db_name}"
+    username       = aws_db_instance.db_dynamic.username
+    password       = aws_db_instance.db_dynamic.password
   }
 }
 

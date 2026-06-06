@@ -109,7 +109,7 @@ module "alb_dynamic" {
 }
 
 # Attach EC2 Instance to the ALB Target Group
-resource "aws_lb_target_group_attachment" "web_server" {
+resource "aws_lb_target_group_attachment" "web_dynamic" {
   target_group_arn = module.alb_dynamic.target_groups["web-dynamic-tg"].arn
   target_id        = module.web_dynamic.id
   port             = 80

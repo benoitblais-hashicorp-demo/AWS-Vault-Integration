@@ -98,7 +98,7 @@ module "alb_dynamic" {
   }
 
   target_groups = {
-    web-tg = {
+    web-dynamic-tg = {
       name              = "web-dynamic-tg"
       protocol          = "HTTP"
       port              = 80

@@ -7,7 +7,7 @@ resource "vault_pki_external_ca_secret_backend_order" "web" {
   namespace   = vault_namespace.demo_pki.path_fq
   mount       = vault_mount.pki_ext_ca.path
   role_name   = vault_pki_external_ca_secret_backend_role.web_cert_role.name
-  identifiers = ["web.benoit-blais.sbx.hashidemos.io"]
+  identifiers = ["web-dynamic.benoit-blais.sbx.hashidemos.io"]
 }
 
 # 5. Retrieve the DNS-01 challenge instructions from Vault
@@ -17,13 +17,13 @@ data "vault_pki_external_ca_secret_backend_order_challenge" "dns" {
   role_name      = vault_pki_external_ca_secret_backend_order.web.role_name
   order_id       = vault_pki_external_ca_secret_backend_order.web.order_id
   challenge_type = "dns-01"
-  identifier     = "web.benoit-blais.sbx.hashidemos.io"
+  identifier     = "web-dynamic.benoit-blais.sbx.hashidemos.io"
 }
 
 # 6. Create the TXT Record in AWS Route53 automatically via Terraform
 resource "aws_route53_record" "acme_challenge" {
   zone_id = data.aws_route53_zone.demo.zone_id
-  name    = "_acme-challenge.web.benoit-blais.sbx.hashidemos.io"
+  name    = "_acme-challenge.web-dynamic.benoit-blais.sbx.hashidemos.io"
   type    = "TXT"
   ttl     = 60
   records = [data.vault_pki_external_ca_secret_backend_order_challenge.dns.key_authorization]
@@ -38,7 +38,7 @@ resource "vault_pki_external_ca_secret_backend_order_challenge_fulfilled" "dns" 
   role_name      = vault_pki_external_ca_secret_backend_order.web.role_name
   order_id       = vault_pki_external_ca_secret_backend_order.web.order_id
   challenge_type = "dns-01"
-  identifier     = "web.benoit-blais.sbx.hashidemos.io"
+  identifier     = "web-dynamic.benoit-blais.sbx.hashidemos.io"
 }
 
 # 8. Fetch the Final Signed Certificate securely from Vault
@@ -65,7 +65,7 @@ resource "aws_acm_certificate" "web" {
 # 10. Map your website DNS to the AWS Load Balancer
 resource "aws_route53_record" "web" {
   zone_id = data.aws_route53_zone.demo.zone_id
-  name    = "web.benoit-blais.sbx.hashidemos.io"
+  name    = "web-dynamic.benoit-blais.sbx.hashidemos.io"
   type    = "A"
 
   alias {

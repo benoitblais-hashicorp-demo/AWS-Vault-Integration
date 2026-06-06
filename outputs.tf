@@ -26,5 +26,5 @@ output "web_dynamic_public_ip" {
 
 output "website_url" {
   description = "The final secured URL of your application"
-  value       = "https://web.benoit-blais.sbx.hashidemos.io"
+  value       = "https://web-dynamic.benoit-blais.sbx.hashidemos.io"
 }

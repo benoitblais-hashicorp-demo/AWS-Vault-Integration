@@ -36,7 +36,7 @@ resource "vault_pki_external_ca_secret_backend_role" "web_cert_role" {
 
   # List the exact domain you wish to validate 
   allowed_domains = [
-    "web.benoit-blais.sbx.hashidemos.io"
+    "web-dynamic.benoit-blais.sbx.hashidemos.io"
   ]
 
   allowed_domain_options = [

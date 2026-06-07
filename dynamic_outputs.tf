@@ -5,7 +5,7 @@ output "alb_dns_name" {
 
 output "linuxadmin_password" {
   description = "The auto-generated initial password for the linuxadmin OS user"
-  value       = random_password.os_linuxadmin_password.result
+  value       = random_password.os_linuxadmin_password_dynamic.result
   sensitive   = true
 }
 

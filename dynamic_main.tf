@@ -91,7 +91,7 @@ module "alb_dynamic" {
     https-443 = {
       port            = 443
       protocol        = "HTTPS"
-      certificate_arn = aws_acm_certificate.web.arn
+      certificate_arn = aws_acm_certificate.web_dynamic.arn
       forward = {
         target_group_key = "web-dynamic-tg"
       }
@@ -170,9 +170,6 @@ resource "vault_pki_external_ca_secret_backend_role" "web_cert_role" {
 }
 
 # Fetch the existing Route 53 zone for DNS records
-data "aws_route53_zone" "demo" {
-  name = "benoit-blais.sbx.hashidemos.io"
-}
 
 # Initiate the ACME Certificate Order with Let's Encrypt via Vault
 resource "vault_pki_external_ca_secret_backend_order" "web" {
@@ -193,7 +190,7 @@ data "vault_pki_external_ca_secret_backend_order_challenge" "dns" {
 }
 
 # Create the TXT Record in AWS Route53 automatically via Terraform for domain validation
-resource "aws_route53_record" "acme_challenge" {
+resource "aws_route53_record" "acme_challenge_dynamic" {
   zone_id = data.aws_route53_zone.demo.zone_id
   name    = "_acme-challenge.web-dynamic.benoit-blais.sbx.hashidemos.io"
   type    = "TXT"
@@ -224,7 +221,7 @@ resource "vault_pki_external_ca_secret_backend_order_certificate" "web" {
 }
 
 # Upload the Let's Encrypt Certificate directly into AWS Certificate Manager for the ALB
-resource "aws_acm_certificate" "web" {
+resource "aws_acm_certificate" "web_dynamic" {
   private_key       = vault_pki_external_ca_secret_backend_order_certificate.web.private_key
   certificate_body  = vault_pki_external_ca_secret_backend_order_certificate.web.certificate
   certificate_chain = join("\n", vault_pki_external_ca_secret_backend_order_certificate.web.ca_chain)
@@ -235,7 +232,7 @@ resource "aws_acm_certificate" "web" {
 }
 
 # Map the public website DNS fully to the AWS Load Balancer
-resource "aws_route53_record" "web" {
+resource "aws_route53_record" "web_dynamic" {
   zone_id = data.aws_route53_zone.demo.zone_id
   name    = "web-dynamic.benoit-blais.sbx.hashidemos.io"
   type    = "A"
@@ -296,13 +293,9 @@ resource "vault_pki_secret_backend_role" "internal_web" {
   generate_lease     = true
 }
 
-data "aws_route53_zone" "internal" {
-  name         = "benoit-blais.sbx.hashidemos.local"
-  private_zone = true
-}
 
 # Map this directly to the Private IP of our Web Server EC2 instance
-resource "aws_route53_record" "web_internal" {
+resource "aws_route53_record" "web_internal_dynamic" {
   zone_id = data.aws_route53_zone.internal.zone_id
   name    = "web-dynamic.benoit-blais.sbx.hashidemos.local"
   type    = "A"
@@ -315,7 +308,7 @@ resource "aws_route53_record" "web_internal" {
 
 # IAM Role for SSM Session Manager
 # Security Best Practice: No inbound SSH directly over Internet, access securely via Systems Manager
-resource "aws_iam_role" "ssm_role" {
+resource "aws_iam_role" "ssm_role_dynamic" {
   name = "web_dynamic_ssm_role"
 
   assume_role_policy = jsonencode({
@@ -332,25 +325,25 @@ resource "aws_iam_role" "ssm_role" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ssm_core" {
-  role       = aws_iam_role.ssm_role.name
+resource "aws_iam_role_policy_attachment" "ssm_core_dynamic" {
+  role       = aws_iam_role.ssm_role_dynamic.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-resource "aws_iam_instance_profile" "ssm_profile" {
+resource "aws_iam_instance_profile" "ssm_profile_dynamic" {
   name = "web_dynamic_ssm_profile"
-  role = aws_iam_role.ssm_role.name
+  role = aws_iam_role.ssm_role_dynamic.name
 }
 
 # Generate passwords for EC2 OS users natively in Terraform to bootstrap the Vault OS Secret Engine
-resource "random_password" "os_linuxadmin_password" {
+resource "random_password" "os_linuxadmin_password_dynamic" {
   length  = 32
   special = true
   # Exclude characters that could cause shell evaluation issues or password parsing problems
   override_special = "!#%&*()-_=+[]{}<>"
 }
 
-resource "random_password" "os_appuser_password" {
+resource "random_password" "os_appuser_password_dynamic" {
   length  = 32
   special = true
   override_special = "!#%&*()-_=+[]{}<>"
@@ -373,15 +366,15 @@ module "web_dynamic" {
     db_name            = aws_db_instance.db_dynamic.db_name
     db_user            = aws_db_instance.db_dynamic.username
     db_password        = aws_db_instance.db_dynamic.password
-    linuxadmin_initial = random_password.os_linuxadmin_password.result
-    appuser_initial    = random_password.os_appuser_password.result
+    linuxadmin_initial = random_password.os_linuxadmin_password_dynamic.result
+    appuser_initial    = random_password.os_appuser_password_dynamic.result
   })
   user_data_replace_on_change = true
 
   subnet_id                   = module.vpc.public_subnets[0]
   associate_public_ip_address = true
   vpc_security_group_ids      = [module.web_dynamic_sg.security_group_id]
-  iam_instance_profile        = aws_iam_instance_profile.ssm_profile.name
+  iam_instance_profile        = aws_iam_instance_profile.ssm_profile_dynamic.name
 
   # Security best practice: IMDSv2 enabled
   metadata_options = {
@@ -462,7 +455,7 @@ resource "vault_os_secret_backend_account" "direct" {
   host            = vault_os_secret_backend_host.web_dynamic.name
   name            = "linuxadmin"
   username        = "linuxadmin"
-  password_wo     = random_password.os_linuxadmin_password.result
+  password_wo     = random_password.os_linuxadmin_password_dynamic.result
   rotation_period = 86400
 }
 
@@ -473,7 +466,7 @@ resource "vault_os_secret_backend_account" "child" {
   host               = vault_os_secret_backend_host.web_dynamic.name
   name               = "appuser"
   username           = "appuser"
-  password_wo        = random_password.os_appuser_password.result
+  password_wo        = random_password.os_appuser_password_dynamic.result
   rotation_period    = 86400
   verify_connection  = false
   parent_account_ref = vault_os_secret_backend_account.direct.name
@@ -534,7 +527,7 @@ module "db_dynamic_sg" {
 # ------------------------------------------------------------------------------
 
 # DB Subnet Group mapped to Public Subnets for Vault accessibility
-resource "aws_db_subnet_group" "public" {
+resource "aws_db_subnet_group" "dynamic" {
   name = "public-db-subnets"
   # Placed in the public subnets so external Vault can reach it for JIT secret generation
   subnet_ids = module.vpc.public_subnets
@@ -542,7 +535,7 @@ resource "aws_db_subnet_group" "public" {
 
 # Database credentials injected temporarily to application script during startup
 # In a full Vault adoption, Vault agent would fetch this directly without being rendered here.
-resource "random_password" "db_password" {
+resource "random_password" "db_password_dynamic" {
   length           = 24
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
@@ -560,12 +553,12 @@ resource "aws_db_instance" "db_dynamic" {
   allocated_storage = 20
   db_name           = "appdb"
   username          = "dbadmin"
-  password          = random_password.db_password.result
+  password          = random_password.db_password_dynamic.result
 
   # Required to be Public so external Vault can connect and manage roles
   publicly_accessible    = true
   vpc_security_group_ids = [module.db_dynamic_sg.security_group_id]
-  db_subnet_group_name   = aws_db_subnet_group.public.name
+  db_subnet_group_name   = aws_db_subnet_group.dynamic.name
   skip_final_snapshot    = true
 }
 

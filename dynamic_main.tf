@@ -200,7 +200,7 @@ resource "aws_route53_record" "acme_challenge_dynamic" {
 
 # Notify Let's Encrypt (Via Vault) that the record is published
 resource "vault_pki_external_ca_secret_backend_order_challenge_fulfilled" "dns" {
-  depends_on = [aws_route53_record.acme_challenge]
+  depends_on = [aws_route53_record.acme_challenge_dynamic]
 
   namespace      = vault_namespace.demo_pki.path_fq
   mount          = vault_pki_external_ca_secret_backend_order.web.mount

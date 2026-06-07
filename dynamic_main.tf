@@ -344,8 +344,8 @@ resource "random_password" "os_linuxadmin_password_dynamic" {
 }
 
 resource "random_password" "os_appuser_password_dynamic" {
-  length  = 32
-  special = true
+  length           = 32
+  special          = true
   override_special = "!#%&*()-_=+[]{}<>"
 }
 

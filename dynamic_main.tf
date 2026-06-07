@@ -12,11 +12,12 @@ module "alb_dynamic_sg" {
   version = "0.0.2"
 
   name        = "alb-dynamic-sg"
-  description = "Security group for ALB allowing public HTTP/HTTPS"
+  description = "Security group for ALB allowing public HTTPS. HTTP is permitted only for 301 redirects."
   vpc_id      = module.vpc.vpc_id
 
   ingress_cidr_blocks = ["0.0.0.0/0"]
-  ingress_rules       = ["http-80-tcp", "https-443-tcp"]
+  # Maintain HTTP ingress purely to catch users typing 'benoit-blais.sbx...' and 301 redirect them to HTTPS.
+  ingress_rules = ["http-80-tcp", "https-443-tcp"]
 
   egress_rules = ["all-all"]
 }
@@ -35,23 +36,27 @@ module "web_dynamic_sg" {
   # Only allow traffic from the ALB
   ingress_with_source_security_group_id = [
     {
+      # The ALB terminates HTTPS and forwards to the target group over HTTP port 80
       rule                     = "http-80-tcp"
-      source_security_group_id = module.alb_dynamic_sg.security_group_id
-    },
-    {
-      rule                     = "https-443-tcp"
       source_security_group_id = module.alb_dynamic_sg.security_group_id
     }
   ]
 
-  # Allow SSH from Vault Server (Temporary 0.0.0.0/0 to ensure avoiding dynamic IP drops)
+  # Allow SSH from Vault Server to configure OS Dynamic Secrets + Admin Laptop for verification
   ingress_with_cidr_blocks = [
     {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      description = "SSH from Vault"
-      cidr_blocks = "0.0.0.0/0"
+      description = "SSH from Vault Server"
+      cidr_blocks = "${var.vault_server_ip}/32"
+    },
+    {
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      description = "SSH from Admin Laptop"
+      cidr_blocks = var.admin_laptop_ip != "" ? var.admin_laptop_ip : "127.0.0.1/32"
     }
   ]
 
@@ -141,7 +146,7 @@ resource "vault_pki_external_ca_secret_backend_acme_account" "lets_encrypt" {
   # Let's Encrypt Staging Directory (Recommended while testing to avoid rate limits)
   # Change to "https://acme-v02.api.letsencrypt.org/directory" for production certs
   directory_url  = "https://acme-staging-v02.api.letsencrypt.org/directory"
-  email_contacts = ["benoit.blais@ibm.com"]
+  email_contacts = [var.acme_email]
   key_type       = "rsa-2048"
 }
 
@@ -154,7 +159,7 @@ resource "vault_pki_external_ca_secret_backend_role" "web_cert_role" {
 
   # List the exact domain you wish to validate 
   allowed_domains = [
-    "web-dynamic.benoit-blais.sbx.hashidemos.io"
+    "web-dynamic.${var.public_hosted_zone}"
   ]
 
   allowed_domain_options = [
@@ -176,7 +181,7 @@ resource "vault_pki_external_ca_secret_backend_order" "web" {
   namespace   = vault_namespace.demo_pki.path_fq
   mount       = vault_mount.pki_ext_ca.path
   role_name   = vault_pki_external_ca_secret_backend_role.web_cert_role.name
-  identifiers = ["web-dynamic.benoit-blais.sbx.hashidemos.io"]
+  identifiers = ["web-dynamic.${var.public_hosted_zone}"]
 }
 
 # Retrieve the DNS-01 challenge instructions from Vault
@@ -186,13 +191,13 @@ data "vault_pki_external_ca_secret_backend_order_challenge" "dns" {
   role_name      = vault_pki_external_ca_secret_backend_order.web.role_name
   order_id       = vault_pki_external_ca_secret_backend_order.web.order_id
   challenge_type = "dns-01"
-  identifier     = "web-dynamic.benoit-blais.sbx.hashidemos.io"
+  identifier     = "web-dynamic.${var.public_hosted_zone}"
 }
 
 # Create the TXT Record in AWS Route53 automatically via Terraform for domain validation
 resource "aws_route53_record" "acme_challenge_dynamic" {
   zone_id = data.aws_route53_zone.demo.zone_id
-  name    = "_acme-challenge.web-dynamic.benoit-blais.sbx.hashidemos.io"
+  name    = "_acme-challenge.web-dynamic.${var.public_hosted_zone}"
   type    = "TXT"
   ttl     = 60
   records = [data.vault_pki_external_ca_secret_backend_order_challenge.dns.key_authorization]
@@ -207,7 +212,7 @@ resource "vault_pki_external_ca_secret_backend_order_challenge_fulfilled" "dns" 
   role_name      = vault_pki_external_ca_secret_backend_order.web.role_name
   order_id       = vault_pki_external_ca_secret_backend_order.web.order_id
   challenge_type = "dns-01"
-  identifier     = "web-dynamic.benoit-blais.sbx.hashidemos.io"
+  identifier     = "web-dynamic.${var.public_hosted_zone}"
 }
 
 # Fetch the Final Signed Certificate securely from Vault out of the successful order
@@ -234,7 +239,7 @@ resource "aws_acm_certificate" "web_dynamic" {
 # Map the public website DNS fully to the AWS Load Balancer
 resource "aws_route53_record" "web_dynamic" {
   zone_id = data.aws_route53_zone.demo.zone_id
-  name    = "web-dynamic.benoit-blais.sbx.hashidemos.io"
+  name    = "web-dynamic.${var.public_hosted_zone}"
   type    = "A"
 
   alias {
@@ -252,7 +257,7 @@ resource "vault_mount" "pki_internal" {
   namespace                 = vault_namespace.demo_pki.path_fq
   path                      = "pki-internal"
   type                      = "pki"
-  description               = "Internal Root CA for benoit-blais.sbx.hashidemos.local"
+  description               = "Internal Root CA for ${var.private_hosted_zone}"
   default_lease_ttl_seconds = 86400    # 1 day
   max_lease_ttl_seconds     = 31536000 # 1 year
 }
@@ -264,7 +269,7 @@ resource "vault_pki_secret_backend_root_cert" "internal_root" {
   backend    = vault_mount.pki_internal.path
 
   type                 = "internal"
-  common_name          = "benoit-blais.sbx.hashidemos.local Root CA"
+  common_name          = "${var.private_hosted_zone} Root CA"
   ttl                  = "315360000" # 10 years
   format               = "pem"
   private_key_format   = "der"
@@ -285,7 +290,7 @@ resource "vault_pki_secret_backend_role" "internal_web" {
   key_bits      = 2048
 
   # Limit this role to only issue certificates for the local zone
-  allowed_domains    = ["benoit-blais.sbx.hashidemos.local"]
+  allowed_domains    = [var.private_hosted_zone]
   allow_subdomains   = true
   allow_glob_domains = false
   allow_any_name     = false
@@ -297,7 +302,7 @@ resource "vault_pki_secret_backend_role" "internal_web" {
 # Map this directly to the Private IP of our Web Server EC2 instance
 resource "aws_route53_record" "web_internal_dynamic" {
   zone_id = data.aws_route53_zone.internal.zone_id
-  name    = "web-dynamic.benoit-blais.sbx.hashidemos.local"
+  name    = "web-dynamic.${var.private_hosted_zone}"
   type    = "A"
   ttl     = 300
   records = [module.web_dynamic.private_ip]
@@ -476,9 +481,9 @@ resource "vault_os_secret_backend_account" "child" {
 # Vault ACL Policy allowing read operations on OS secrets
 resource "vault_policy" "host_readers" {
   namespace = vault_namespace.demo.path_fq
-  name      = "policy-os-web-server-reader"
+  name      = "policy-os-web-dynamic-reader"
   policy    = <<POLICY
-path "os/hosts/web-server/accounts/*/creds" {
+path "os/hosts/web-dynamic/accounts/*/creds" {
   capabilities = ["read"]
 }
 POLICY

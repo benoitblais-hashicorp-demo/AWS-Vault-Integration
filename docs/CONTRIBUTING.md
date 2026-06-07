@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for your interest in contributing! This repository uses **Terraform** to configure HashiCorp Vault, enabling the TFE secrets engine for dynamic HCP Terraform Team tokens and JWT authentication. Please review these guidelines before contributing.
+Thank you for your interest in contributing! This repository uses **Terraform** to showcase an end-to-end automated architecture comparing standard AWS deployments (static/adoption) against HashiCorp's standardized Vault-backed workflows (dynamic/modules). It orchestrates AWS EC2, RDS, and Application Load Balancers alongside HashiCorp Vault dynamic OS secrets, dynamic database credentials, and comprehensive PKI (Public Let's Encrypt / Private Root CA) integration. Please review these guidelines before contributing.
 
 ## Architecture Paradigm: HCP Terraform Workspaces
 

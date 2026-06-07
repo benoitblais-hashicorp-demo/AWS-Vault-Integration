@@ -160,6 +160,12 @@ Description: (Required) The URL of your Vault instance.
 
 Type: `string`
 
+### <a name="input_vault_server_ip"></a> [vault\_server\_ip](#input\_vault\_server\_ip)
+
+Description: (Required) The public IP address of the Vault server allowed to access the RDS database.
+
+Type: `string`
+
 ### <a name="input_vault_token"></a> [vault\_token](#input\_vault\_token)
 
 Description: (Required) Vault token with administrative privileges.
@@ -169,6 +175,14 @@ Type: `string`
 ## Optional Inputs
 
 The following input variables are optional (have default values):
+
+### <a name="input_acme_email"></a> [acme\_email](#input\_acme\_email)
+
+Description: (Optional) Email address for Let's Encrypt ACME account registration.
+
+Type: `string`
+
+Default: `"benoit.blais@ibm.com"`
 
 ### <a name="input_admin_laptop_ip"></a> [admin\_laptop\_ip](#input\_admin\_laptop\_ip)
 
@@ -186,13 +200,21 @@ Type: `string`
 
 Default: `"ca-central-1"`
 
-### <a name="input_vault_server_ip"></a> [vault\_server\_ip](#input\_vault\_server\_ip)
+### <a name="input_private_hosted_zone"></a> [private\_hosted\_zone](#input\_private\_hosted\_zone)
 
-Description: (Optional) The public IP address of the Vault server allowed to access the RDS database.
+Description: (Optional) Private Route53 Hosted Zone domain name for Vault internal PKI.
 
 Type: `string`
 
-Default: `"3.86.9.84"`
+Default: `"benoit-blais.sbx.hashidemos.local"`
+
+### <a name="input_public_hosted_zone"></a> [public\_hosted\_zone](#input\_public\_hosted\_zone)
+
+Description: (Optional) Public Route53 Hosted Zone domain name for Let's Encrypt certificates and external DNS.
+
+Type: `string`
+
+Default: `"benoit-blais.sbx.hashidemos.io"`
 
 ### <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr)
 
@@ -201,14 +223,6 @@ Description: (Optional) The CIDR block for the VPC.
 Type: `string`
 
 Default: `"10.0.0.0/16"`
-
-### <a name="input_vpc_name"></a> [vpc\_name](#input\_vpc\_name)
-
-Description: (Optional) The name of the VPC.
-
-Type: `string`
-
-Default: `"web-infra-vpc"`
 
 ## Resources
 
@@ -261,33 +275,9 @@ The following resources are used by this module:
 
 The following outputs are exported:
 
-### <a name="output_alb_dns_name"></a> [alb\_dns\_name](#output\_alb\_dns\_name)
-
-Description: The DNS name of the Application Load Balancer.
-
-### <a name="output_linuxadmin_password"></a> [linuxadmin\_password](#output\_linuxadmin\_password)
-
-Description: The auto-generated initial password for the linuxadmin OS user
-
 ### <a name="output_rds_endpoint"></a> [rds\_endpoint](#output\_rds\_endpoint)
 
 Description: The endpoint of the RDS instance
-
-### <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id)
-
-Description: The ID of the VPC.
-
-### <a name="output_vpc_private_subnets"></a> [vpc\_private\_subnets](#output\_vpc\_private\_subnets)
-
-Description: List of private subnets in the VPC.
-
-### <a name="output_vpc_public_subnets"></a> [vpc\_public\_subnets](#output\_vpc\_public\_subnets)
-
-Description: List of public subnets in the VPC.
-
-### <a name="output_web_dynamic_id"></a> [web\_dynamic\_id](#output\_web\_dynamic\_id)
-
-Description: The instance ID of the web server.
 
 ### <a name="output_web_dynamic_public_ip"></a> [web\_dynamic\_public\_ip](#output\_web\_dynamic\_public\_ip)
 

@@ -7,7 +7,7 @@ module "vpc" {
   source  = "app.terraform.io/benoitblais-hashicorp/vpc/aws"
   version = "0.0.1"
 
-  name = var.vpc_name
+  name = "web-infra-vpc"
   cidr = var.vpc_cidr
 
   azs             = slice(data.aws_availability_zones.available.names, 0, 2)

@@ -1,7 +1,12 @@
 variable "vault_server_ip" {
-  description = "(Optional) The public IP address of the Vault server allowed to access the RDS database."
+  description = "(Required) The public IP address of the Vault server allowed to access the RDS database."
   type        = string
-  default     = "3.86.9.84"
+}
+
+variable "acme_email" {
+  description = "(Optional) Email address for Let's Encrypt ACME account registration."
+  type        = string
+  default     = "benoit.blais@ibm.com"
 }
 
 variable "admin_laptop_ip" {

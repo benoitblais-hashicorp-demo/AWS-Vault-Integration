@@ -16,11 +16,11 @@ data "aws_ami" "rhel9" {
 
 # Fetch the existing Route 53 zone for public DNS records
 data "aws_route53_zone" "demo" {
-  name = "benoit-blais.sbx.hashidemos.io"
+  name = var.public_hosted_zone
 }
 
 # Fetch the existing Route 53 zone for internal DNS records
 data "aws_route53_zone" "internal" {
-  name         = "benoit-blais.sbx.hashidemos.local"
+  name         = var.private_hosted_zone
   private_zone = true
 }

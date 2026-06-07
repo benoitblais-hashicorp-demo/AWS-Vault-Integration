@@ -67,11 +67,11 @@ def index():
     try:
         # In a real Vault deployment, Vault agent would write these variables dynamically
         conn = psycopg2.connect(
-            host=os.environ.get('DB_HOST'),
-            port=os.environ.get('DB_PORT'),
-            database=os.environ.get('DB_NAME'),
-            user=os.environ.get('DB_USER'),
-            password=os.environ.get('DB_PASSWORD')
+            host='${db_host}',
+            port='${db_port}',
+            database='${db_name}',
+            user='${db_user}',
+            password='${db_password}'
         )
         cur = conn.cursor()
         cur.execute("SELECT title, message FROM demo_content LIMIT 1;")
@@ -99,11 +99,6 @@ Description=Demo Flask Web App
 After=network.target
 
 [Service]
-Environment="DB_HOST=${db_host}"
-Environment="DB_PORT=${db_port}"
-Environment="DB_NAME=${db_name}"
-Environment="DB_USER=${db_user}"
-Environment="DB_PASSWORD=${db_password}"
 ExecStart=/usr/bin/python3 /opt/app/app.py
 Restart=always
 User=root

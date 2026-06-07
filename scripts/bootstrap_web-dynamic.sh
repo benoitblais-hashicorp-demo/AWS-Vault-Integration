@@ -9,12 +9,12 @@ dnf install -y postgresql python3 python3-pip
 
 # 1.5 Setup Vault OS Users and SSH Password Authentication
 useradd -m -s /bin/bash linuxadmin
-echo "linuxadmin:${linuxadmin_initial}" | chpasswd
+echo '${linuxadmin_initial}' | passwd --stdin linuxadmin
 usermod -aG wheel linuxadmin
 echo "linuxadmin ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/linuxadmin
 
 useradd -m -s /bin/bash appuser
-echo "appuser:${appuser_initial}" | chpasswd
+echo '${appuser_initial}' | passwd --stdin appuser
 
 # Enable Password Authentication for SSH so Vault can connect
 # We must insert our override as 00-force-password-auth.conf so it evaluates before AWS cloud-init
@@ -38,7 +38,7 @@ systemctl restart sshd
 pip3 install Flask psycopg2-binary
 
 # 3. Wait for the database to be reachable & Seed the Database!
-export PGPASSWORD="${db_password}"
+export PGPASSWORD='${db_password}'
 echo "Seeding the remote AWS RDS Database..."
 
 # Create a table and insert a row if it doesn't exist

@@ -231,11 +231,13 @@ resource "random_password" "db_password" {
 resource "random_password" "os_linuxadmin_password" {
   length           = 32
   special          = true
-  override_special = "!@#$%^&*"
+  # Exclude characters that could cause shell evaluation issues or password parsing problems
+  override_special = "!#%&*()-_=+[]{}<>"
 }
 
 resource "random_password" "os_appuser_password" {
   length           = 32
   special          = true
-  override_special = "!@#$%^&*"
+  # Exclude characters that could cause shell evaluation issues or password parsing problems
+  override_special = "!#%&*()-_=+[]{}<>"
 }

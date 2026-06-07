@@ -456,7 +456,7 @@ resource "vault_os_secret_backend_account" "direct" {
   name            = "linuxadmin"
   username        = "linuxadmin"
   password_wo     = random_password.os_linuxadmin_password_dynamic.result
-  rotation_period = 86400
+  rotation_period = 300 # Aggressive 5-minute rotation for demo visibility
 }
 
 # Register Application child user under the admin account lifecycle
@@ -467,7 +467,7 @@ resource "vault_os_secret_backend_account" "child" {
   name               = "appuser"
   username           = "appuser"
   password_wo        = random_password.os_appuser_password_dynamic.result
-  rotation_period    = 86400
+  rotation_period    = 300 # Aggressive 5-minute rotation for demo visibility
   verify_connection  = false
   parent_account_ref = vault_os_secret_backend_account.direct.name
   depends_on         = [vault_os_secret_backend_account.direct]
@@ -508,6 +508,11 @@ module "db_dynamic_sg" {
       rule        = "postgresql-tcp"
       cidr_blocks = "${var.vault_server_ip}/32"
       description = "Access from external Vault server"
+    },
+    {
+      rule        = "postgresql-tcp"
+      cidr_blocks = var.admin_laptop_ip != "" ? var.admin_laptop_ip : "127.0.0.1/32"
+      description = "Access from Admin Laptop for Demo Verification"
     }
   ]
 
@@ -603,8 +608,8 @@ resource "vault_database_secret_backend_role" "webapp" {
     "CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';",
     "GRANT SELECT, UPDATE, INSERT, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";"
   ]
-  default_ttl = 3600  # 1 hour
-  max_ttl     = 86400 # 24 hours
+  default_ttl = 300  # 5 minutes for rapid demo expiration
+  max_ttl     = 3600 # 1 hour max
 }
 
 # Generate an ACL Policy mapped for consuming the dynamic DB role

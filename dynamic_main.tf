@@ -408,8 +408,8 @@ POLICY
 
 # OS Secrets Engine Mount
 resource "vault_mount" "os_mount" {
-  namespace = vault_namespace.demo.path_fq
-  path      = "os"
+  namespace   = vault_namespace.demo.path_fq
+  path        = "os"
   type        = "vault-plugin-secrets-os"
   description = "OS secret backend"
 }
@@ -440,7 +440,7 @@ resource "vault_os_secret_backend_host" "web_dynamic" {
   namespace  = vault_namespace.demo.path_fq
   mount      = vault_os_secret_backend.os_backend.mount
   name       = "web-dynamic"
-  
+
   # Using the public IP of the created web server so external Vault can reach it
   address         = module.web_dynamic.public_ip
   port            = 22

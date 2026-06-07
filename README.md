@@ -1,5 +1,98 @@
 <!-- BEGIN_TF_DOCS -->
+# HashiCorp Vault Integrations on AWS
 
+This repository provides an end-to-end Terraform architecture demonstrating HashiCorp Vault integrations on AWS. It orchestrates core AWS infrastructure (VPC, EC2, RDS, ALB) and contrasts a typical static adoption methodology against a fully standardized, dynamic Vault architecture.
+
+## What this demo demonstrates
+
+This demo showcases the power of HashiCorp Vault in centralizing and automating secret management across both infrastructure and applications. By comparing a static deployment to a dynamic one, it highlights the transition from long-lived, hardcoded credentials to ephemeral, Vault-managed secrets dynamically injected securely into workloads.
+
+## Key Integration Points
+
+* **Vault OS Secrets Engine**: Dynamic, time-to-live (TTL) bound SSH credentials for EC2 instances.
+* **Vault Database Secrets Engine**: Ephemeral PostgreSQL database credentials to ensure zero-trust database access.
+* **Vault PKI (Public & Private)**: Automated ACME Let's Encrypt certificate generation for public ALB endpoints via Route53 DNS challenges, and Private Root CA initialization for internal DNS routing.
+* **HashiCorp Terraform**: Standardized infrastructure-as-code modules for AWS deployments (VPC, EC2, ALB, RDS, Security Groups).
+
+## Demo Components
+
+* **Network Architecture**: Foundational AWS VPC, Public/Private Subnets, and NAT Gateway.
+* **Web Application (Dynamic)**: An EC2 instance running a Python Flask application that fetches database parameters.
+* **Web Application (Static)**: A baseline deployment mimicking traditional manual AWS configuration (Coming soon).
+* **Database**: AWS RDS PostgreSQL instance serving as the application backend.
+* **Load Balancing & DNS**: Application Load Balancer securing incoming internet traffic using Vault-minted certificates, mapped via Route53.
+
+## How this demo works
+
+Terraform provisions the AWS networking and compute infrastructure. For the dynamic track, it automatically bootstraps the Vault environment, mounting the PKI, OS, and Database Secret engines. The EC2 web server starts up and dynamically connects to the PostgreSQL RDS database using parameters injected via Terraform/Vault, serving a web UI with verified TLS certificates.
+
+## Demo Value Proposition
+
+1. **Zero Trust Security**: Eliminates static, long-lived SSH keys and database passwords.
+2. **Automated Certificate Lifecycle**: Drastically reduces the operational overhead of PKI renewal and provisioning.
+3. **Standardization**: Illustrates the shift from disparate, manual AWS resource creation to modular, scalable Terraform code managing Vault integrations seamlessly.
+
+## How to Conduct the Demo
+
+1. **Showcase the Web App:**
+   Navigate to the `website_url` output (e.g. `https://web-dynamic.benoit-blais.sbx.hashidemos.io`) to show the secured application running correctly with valid Let's Encrypt certificates.
+2. **Demonstrate Dynamic OS Access:**
+   * In the Vault UI or via CLI, request a dynamic credential for the Linux application user: `vault read demo_os_secret/creds/web-dynamic/appuser`
+   * Retrieve the generated username and one-time password.
+   * SSH into the EC2 instance using the public IP and authenticate with this temporary credential.
+3. **Demonstrate Automated OS Password Rotation:**
+   * In the Vault UI, navigate to the `demo_os_secret` backend and optionally trigger a force rotation of the `linuxadmin` parent account.
+   * Alternately, wait 5 minutes.
+   * Attempt to SSH using the previously outputted Terraform `linuxadmin_password`. The connection will be rejected since Vault has automatically rolled the local Linux user password seamlessly in the background (configured for an aggressive 300s / 5-minute rotation period for the demo).
+4. **Demonstrate Dynamic Database Credentials:**
+   * *Prerequisite*: Add your laptop IP to the Terraform `admin_laptop_ip` variable to allow external DB connections.
+   * Request a temporary database credential: `vault read demo_database/creds/webapp`
+   * Connect directly to the AWS RDS instance using these credentials (e.g., using `psql`, PGAdmin or DBeaver). Provide the RDS Endpoint output from Terraform as the host.
+   * Update a record in the `demo_content` table to showcase real-time read/write access:
+     ```sql
+     UPDATE demo_content SET message = 'Live Vault Demo Successful!' WHERE id = 1;
+     ```
+   * Reload the web page to show the live database update.
+5. **Wait for Expiration:**
+   * Wait a few minutes for the TTL to expire (the default demo database lease is an ultra-short **300s / 5 minutes**), or actively revoke the lease in Vault to forcefully bypass the timer.
+   * Attempt to connect to the database again using the identical dynamic credentials. Access will be explicitly denied, proving zero-trust enforcement.
+
+## Expected Behavior
+
+* The web server will output a success message pulling live data from the database.
+* You will be able to retrieve temporary passwords from Vault.
+* Direct database and OS access using expired Vault passwords will be explicitly denied.
+
+## Permissions & Authentication
+
+### AWS Provider
+
+To provision resources on AWS, Terraform requires authentication. You can authenticate using any of the standard methods supported by the AWS Provider.
+
+* **OIDC via HCP Terraform (Recommended)**: For VCS-driven workflows, configure HCP Terraform to use Dynamic Provider Credentials to assume an AWS IAM role.
+* **Environment Variables**: Export standard AWS credentials for local debugging.
+  ```bash
+  export AWS_ACCESS_KEY_ID="anaccesskey"
+  export AWS_SECRET_ACCESS_KEY="asecretkey"
+  export AWS_SESSION_TOKEN="asessiontoken" # optional
+  export AWS_REGION="ca-central-1"
+  ```
+* **Shared Credentials File**: Use an AWS profile defined in `~/.aws/credentials`.
+
+**Required IAM Permissions**: The role or user must have sufficient rights to manage VPCs, Subnets, EC2 Instances, Route53 Zones/Records, Application Load Balancers, Target Groups, ACM Certificates, IAM Roles/Profiles, and RDS instances.
+
+### Vault Provider
+
+The `vault` provider must be configured to communicate with your HashiCorp Vault cluster.
+
+* **HCP Terraform / JWT Auth (Recommended)**: Configure Vault to trust HCP Terraform workspace identities via JWT authentication.
+* **Environment Variables**: Provide the Vault address and token for local runs.
+  ```bash
+  export VAULT_ADDR="https://vault.example.com:8200"
+  export VAULT_TOKEN="hvs.abc123def456"
+  ```
+
+**Required Vault Permissions**: The token must be attached to a policy granting administrative rights to mount secret engines (`sys/mounts/*`), configure `pki`, `pki-external-ca`, `os`, and `database` engines, and create corresponding roles and policies.
 
 ## Documentation
 
@@ -13,25 +106,27 @@ The following requirements are needed by this module:
 
 - <a name="requirement_random"></a> [random](#requirement\_random) (~> 3.5.0)
 
+- <a name="requirement_time"></a> [time](#requirement\_time) (~> 0.11.0)
+
 - <a name="requirement_vault"></a> [vault](#requirement\_vault) (>= 4.0.0)
 
 ## Modules
 
 The following Modules are called:
 
-### <a name="module_alb"></a> [alb](#module\_alb)
+### <a name="module_alb_dynamic"></a> [alb\_dynamic](#module\_alb\_dynamic)
 
 Source: app.terraform.io/benoitblais-hashicorp/alb/aws
 
 Version: 0.0.1
 
-### <a name="module_alb_sg"></a> [alb\_sg](#module\_alb\_sg)
+### <a name="module_alb_dynamic_sg"></a> [alb\_dynamic\_sg](#module\_alb\_dynamic\_sg)
 
 Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
 
 Version: 0.0.2
 
-### <a name="module_rds_sg"></a> [rds\_sg](#module\_rds\_sg)
+### <a name="module_db_dynamic_sg"></a> [db\_dynamic\_sg](#module\_db\_dynamic\_sg)
 
 Source: terraform-aws-modules/security-group/aws
 
@@ -43,13 +138,13 @@ Source: app.terraform.io/benoitblais-hashicorp/vpc/aws
 
 Version: 0.0.1
 
-### <a name="module_web_server"></a> [web\_server](#module\_web\_server)
+### <a name="module_web_dynamic"></a> [web\_dynamic](#module\_web\_dynamic)
 
 Source: terraform-aws-modules/ec2-instance/aws
 
 Version: ~> 5.6
 
-### <a name="module_web_server_sg"></a> [web\_server\_sg](#module\_web\_server\_sg)
+### <a name="module_web_dynamic_sg"></a> [web\_dynamic\_sg](#module\_web\_dynamic\_sg)
 
 Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
 
@@ -61,13 +156,13 @@ The following input variables are required:
 
 ### <a name="input_vault_address"></a> [vault\_address](#input\_vault\_address)
 
-Description: The URL of your Vault instance
+Description: (Required) The URL of your Vault instance.
 
 Type: `string`
 
 ### <a name="input_vault_token"></a> [vault\_token](#input\_vault\_token)
 
-Description: Vault token with administrative privileges
+Description: (Required) Vault token with administrative privileges.
 
 Type: `string`
 
@@ -75,47 +170,92 @@ Type: `string`
 
 The following input variables are optional (have default values):
 
+### <a name="input_admin_laptop_ip"></a> [admin\_laptop\_ip](#input\_admin\_laptop\_ip)
+
+Description: (Optional) Public IP of your local laptop allowed to connect directly to the RDS instance for demo verification. Needs /32 suffix.
+
+Type: `string`
+
+Default: `""`
+
 ### <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region)
 
-Description: The AWS region to deploy resources into.
+Description: (Optional) The AWS region to deploy resources into.
 
 Type: `string`
 
 Default: `"ca-central-1"`
 
+### <a name="input_vault_server_ip"></a> [vault\_server\_ip](#input\_vault\_server\_ip)
+
+Description: (Optional) The public IP address of the Vault server allowed to access the RDS database.
+
+Type: `string`
+
+Default: `"3.86.9.84"`
+
 ### <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr)
 
-Description: The CIDR block for the VPC.
+Description: (Optional) The CIDR block for the VPC.
 
 Type: `string`
 
 Default: `"10.0.0.0/16"`
 
+### <a name="input_vpc_name"></a> [vpc\_name](#input\_vpc\_name)
+
+Description: (Optional) The name of the VPC.
+
+Type: `string`
+
+Default: `"web-infra-vpc"`
+
 ## Resources
 
 The following resources are used by this module:
 
-- [aws_db_instance.postgres](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance) (resource)
-- [aws_db_subnet_group.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group) (resource)
-- [aws_iam_instance_profile.ssm_profile](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) (resource)
-- [aws_iam_role.ssm_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) (resource)
-- [aws_iam_role_policy_attachment.ssm_core](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) (resource)
-- [aws_lb_target_group_attachment.web_server](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment) (resource)
-- [random_password.db_password](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
+- [aws_acm_certificate.web_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate) (resource)
+- [aws_db_instance.db_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance) (resource)
+- [aws_db_subnet_group.dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group) (resource)
+- [aws_iam_instance_profile.ssm_profile_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) (resource)
+- [aws_iam_role.ssm_role_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) (resource)
+- [aws_iam_role_policy_attachment.ssm_core_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) (resource)
+- [aws_lb_target_group_attachment.web_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment) (resource)
+- [aws_route53_record.acme_challenge_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
+- [aws_route53_record.web_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
+- [aws_route53_record.web_internal_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
+- [random_password.db_password_dynamic](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
+- [random_password.os_appuser_password_dynamic](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
+- [random_password.os_linuxadmin_password_dynamic](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
+- [time_sleep.wait_for_web_dynamic](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/sleep) (resource)
 - [vault_database_secret_backend_connection.postgres](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/database_secret_backend_connection) (resource)
 - [vault_database_secret_backend_role.webapp](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/database_secret_backend_role) (resource)
 - [vault_mount.db](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/mount) (resource)
+- [vault_mount.os_mount](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/mount) (resource)
+- [vault_mount.pki_ext_ca](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/mount) (resource)
+- [vault_mount.pki_internal](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/mount) (resource)
 - [vault_namespace.db](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/namespace) (resource)
 - [vault_namespace.demo](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/namespace) (resource)
+- [vault_namespace.demo_pki](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/namespace) (resource)
 - [vault_os_secret_backend.os_backend](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend) (resource)
 - [vault_os_secret_backend_account.child](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_account) (resource)
 - [vault_os_secret_backend_account.direct](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_account) (resource)
-- [vault_os_secret_backend_host.web_server](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_host) (resource)
+- [vault_os_secret_backend_host.web_dynamic](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_host) (resource)
 - [vault_password_policy.strict](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/password_policy) (resource)
+- [vault_pki_external_ca_secret_backend_acme_account.lets_encrypt](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_acme_account) (resource)
+- [vault_pki_external_ca_secret_backend_order.web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order) (resource)
+- [vault_pki_external_ca_secret_backend_order_certificate.web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order_certificate) (resource)
+- [vault_pki_external_ca_secret_backend_order_challenge_fulfilled.dns](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order_challenge_fulfilled) (resource)
+- [vault_pki_external_ca_secret_backend_role.web_cert_role](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_role) (resource)
+- [vault_pki_secret_backend_role.internal_web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_role) (resource)
+- [vault_pki_secret_backend_root_cert.internal_root](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_root_cert) (resource)
 - [vault_policy.host_readers](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) (resource)
 - [vault_policy.webapp_db_policy](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) (resource)
 - [aws_ami.rhel9](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ami) (data source)
 - [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) (data source)
+- [aws_route53_zone.demo](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route53_zone) (data source)
+- [aws_route53_zone.internal](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route53_zone) (data source)
+- [vault_pki_external_ca_secret_backend_order_challenge.dns](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/pki_external_ca_secret_backend_order_challenge) (data source)
 
 ## Outputs
 
@@ -125,6 +265,10 @@ The following outputs are exported:
 
 Description: The DNS name of the Application Load Balancer.
 
+### <a name="output_linuxadmin_password"></a> [linuxadmin\_password](#output\_linuxadmin\_password)
+
+Description: The auto-generated initial password for the linuxadmin OS user
+
 ### <a name="output_rds_endpoint"></a> [rds\_endpoint](#output\_rds\_endpoint)
 
 Description: The endpoint of the RDS instance
@@ -133,9 +277,25 @@ Description: The endpoint of the RDS instance
 
 Description: The ID of the VPC.
 
-### <a name="output_web_server_id"></a> [web\_server\_id](#output\_web\_server\_id)
+### <a name="output_vpc_private_subnets"></a> [vpc\_private\_subnets](#output\_vpc\_private\_subnets)
+
+Description: List of private subnets in the VPC.
+
+### <a name="output_vpc_public_subnets"></a> [vpc\_public\_subnets](#output\_vpc\_public\_subnets)
+
+Description: List of public subnets in the VPC.
+
+### <a name="output_web_dynamic_id"></a> [web\_dynamic\_id](#output\_web\_dynamic\_id)
 
 Description: The instance ID of the web server.
+
+### <a name="output_web_dynamic_public_ip"></a> [web\_dynamic\_public\_ip](#output\_web\_dynamic\_public\_ip)
+
+Description: The public IP of the web server
+
+### <a name="output_website_url"></a> [website\_url](#output\_website\_url)
+
+Description: The final secured URL of your application
 
 <!-- markdownlint-enable -->
 <!-- END_TF_DOCS -->

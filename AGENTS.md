@@ -4,18 +4,26 @@ This file provides instructions for AI coding agents working on this Terraform P
 
 ## Project Overview
 
-This project is used to provision infrastructure in AWS and demonstrate the integration with HashiCorp Vault for secret credentials handling. It configures Vault to manage AWS dynamic credentials and leverages HashiCorp Vault for secure workflow authentication (e.g., via JWT authentication for GitHub Actions) to retrieve these secrets.
+This project provides an end-to-end Terraform architecture demonstrating HashiCorp Vault integrations. It deploys core AWS infrastructure (VPC, EC2, RDS, ALB) and contrasts a typical static adoption methodology against a fully standardized, dynamic Vault architecture. Vault orchestrates dynamic OS credentials, dynamic PostgreSQL passwords, and comprehensive public/private PKI (Let's Encrypt / Root CA) integration.
 
 ## Module and Repository Structure
 
-Organize your Terraform project as follows:
+Organize your Terraform project as follows to preserve the boundaries between the baseline networking, the dynamic deployment track, and the static deployment track:
 
 ```text
 ├── .gitignore
 ├── LICENSE
 ├── README.md
-├── main.tf
-├── outputs.tf
+├── data.tf
+├── network_main.tf
+├── network_outputs.tf
+├── network_variables.tf
+├── dynamic_main.tf
+├── dynamic_outputs.tf
+├── dynamic_variables.tf
+├── static_main.tf
+├── static_outputs.tf
+├── static_variables.tf
 ├── providers.tf
 ├── variables.tf
 ├── versions.tf
@@ -33,10 +41,12 @@ Organize your Terraform project as follows:
 - `README.md` – Required in the root module. Generated automatically (e.g., via Terraform-Docs). Do not edit manually.
 - `docs/README_header.md` - Describe the purpose of the code and provide required context.
 - `docs/README_footer.md` - Provide links to external documentation used to generate the code.
-- `main.tf` – Primary resource and data source definitions.
-- `outputs.tf` – Output value definitions (alphabetical order).
+- `*_main.tf` – Resource definitions strictly bounded to their respective architectures.
+- `*_outputs.tf` – Output value definitions (alphabetical order).
+- `*_variables.tf` – Input variable definitions (alphabetical order with required variables at the top).
+- `data.tf` - Shared data sources across the entire workspace.
 - `providers.tf` – Provider configurations.
-- `variables.tf` – Input variable definitions (alphabetical order with required variables at the top).
+- `variables.tf` – Global input variable definitions (alphabetical order with required variables at the top).
 - `versions.tf` - Terraform version and provider requirements.
 
 ## Tools and Frameworks

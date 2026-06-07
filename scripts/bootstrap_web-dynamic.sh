@@ -5,14 +5,40 @@ exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 echo "Starting RHEL Web and DB initialization..."
 
 # 1. Update OS and install Python and PostgreSQL client
-dnf update -y
 dnf install -y postgresql python3 python3-pip
+
+# 1.5 Setup Vault OS Users and SSH Password Authentication
+useradd -m -s /bin/bash linuxadmin
+echo '${linuxadmin_initial}' | passwd --stdin linuxadmin
+usermod -aG wheel linuxadmin
+echo "linuxadmin ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/linuxadmin
+
+useradd -m -s /bin/bash appuser
+echo '${appuser_initial}' | passwd --stdin appuser
+
+# Enable Password Authentication for SSH so Vault can connect
+# We must insert our override as 00-force-password-auth.conf so it evaluates before AWS cloud-init
+cat << 'EOF_SSH' > /etc/ssh/sshd_config.d/00-force-password-auth.conf
+# Aggressively force Password and Keyboard-Interactive auth globally
+PasswordAuthentication yes
+KbdInteractiveAuthentication yes
+PubkeyAuthentication yes
+UsePAM yes
+Match Address *
+    PasswordAuthentication yes
+EOF_SSH
+
+# Also forcefully purge negations from existing files
+sed -i 's/^[#]*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+sed -i 's/^[#]*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/sshd_config.d/*.conf || true
+
+systemctl restart sshd
 
 # 2. Install Flask and psycopg2 for the python web app
 pip3 install Flask psycopg2-binary
 
 # 3. Wait for the database to be reachable & Seed the Database!
-export PGPASSWORD="${db_password}"
+export PGPASSWORD='${db_password}'
 echo "Seeding the remote AWS RDS Database..."
 
 # Create a table and insert a row if it doesn't exist
@@ -41,11 +67,11 @@ def index():
     try:
         # In a real Vault deployment, Vault agent would write these variables dynamically
         conn = psycopg2.connect(
-            host=os.environ.get('DB_HOST'),
-            port=os.environ.get('DB_PORT'),
-            database=os.environ.get('DB_NAME'),
-            user=os.environ.get('DB_USER'),
-            password=os.environ.get('DB_PASSWORD')
+            host='${db_host}',
+            port='${db_port}',
+            database='${db_name}',
+            user='${db_user}',
+            password='${db_password}'
         )
         cur = conn.cursor()
         cur.execute("SELECT title, message FROM demo_content LIMIT 1;")
@@ -73,11 +99,6 @@ Description=Demo Flask Web App
 After=network.target
 
 [Service]
-Environment="DB_HOST=${db_host}"
-Environment="DB_PORT=${db_port}"
-Environment="DB_NAME=${db_name}"
-Environment="DB_USER=${db_user}"
-Environment="DB_PASSWORD=${db_password}"
 ExecStart=/usr/bin/python3 /opt/app/app.py
 Restart=always
 User=root

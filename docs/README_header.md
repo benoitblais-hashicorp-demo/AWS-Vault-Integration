@@ -10,7 +10,7 @@ This demo showcases the power of HashiCorp Vault in centralizing and automating 
 
 * **Vault OS Secrets Engine**: Dynamic, time-to-live (TTL) bound SSH credentials for EC2 instances.
 * **Vault Database Secrets Engine**: Ephemeral PostgreSQL database credentials to ensure zero-trust database access.
-* **Vault PKI (Public & Private)**: Automated ACME Let's Encrypt certificate generation for public ALB endpoints via Route53 DNS challenges, and Private Root CA initialization for internal DNS routing.
+* **Vault PKI (Public & Private)**: Automated ACME Let's Encrypt certificate generation for public ALB endpoints via Route53 DNS challenges, and Private Root CA initialization for End-to-End Encryption between the Application Load Balancer and specific EC2 workloads.
 * **HashiCorp Terraform**: Standardized infrastructure-as-code modules for AWS deployments (VPC, EC2, ALB, RDS, Security Groups).
 
 ## Demo Components
@@ -42,7 +42,7 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
 3. **Demonstrate Automated OS Password Rotation:**
    * In the Vault UI, navigate to the `demo_os_secret` backend and optionally trigger a force rotation of the `linuxadmin` parent account.
    * Alternately, wait 5 minutes.
-   * Attempt to SSH using the previously outputted Terraform `linuxadmin_password`. The connection will be rejected since Vault has automatically rolled the local Linux user password seamlessly in the background (configured for an aggressive 300s / 5-minute rotation period for the demo).
+   * Attempt to SSH using the previously retrieved dynamic credential. The connection will be rejected since Vault has automatically rolled the local Linux user password seamlessly in the background (configured for an aggressive 300s / 5-minute rotation period for the demo).
 4. **Demonstrate Dynamic Database Credentials:**
    * *Prerequisite*: Add your laptop IP to the Terraform `admin_laptop_ip` variable to allow external DB connections.
    * Request a temporary database credential: `vault read demo_database/creds/webapp`

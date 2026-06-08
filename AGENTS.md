@@ -16,7 +16,6 @@ Organize your Terraform project as follows to preserve the boundaries between th
 ├── README.md
 ├── data.tf
 ├── network_main.tf
-├── network_outputs.tf
 ├── network_variables.tf
 ├── dynamic_main.tf
 ├── dynamic_outputs.tf

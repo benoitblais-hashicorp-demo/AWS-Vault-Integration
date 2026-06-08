@@ -1,5 +1,98 @@
 <!-- BEGIN_TF_DOCS -->
+# HashiCorp Vault Integrations on AWS
 
+This repository provides an end-to-end Terraform architecture demonstrating HashiCorp Vault integrations on AWS. It orchestrates core AWS infrastructure (VPC, EC2, RDS, ALB) and contrasts a typical static adoption methodology against a fully standardized, dynamic Vault architecture.
+
+## What this demo demonstrates
+
+This demo showcases the power of HashiCorp Vault in centralizing and automating secret management across both infrastructure and applications. By comparing a static deployment to a dynamic one, it highlights the transition from long-lived, hardcoded credentials to ephemeral, Vault-managed secrets dynamically injected securely into workloads.
+
+## Key Integration Points
+
+* **Vault OS Secrets Engine**: Dynamic, time-to-live (TTL) bound SSH credentials for EC2 instances.
+* **Vault Database Secrets Engine**: Ephemeral PostgreSQL database credentials to ensure zero-trust database access.
+* **Vault PKI (Public & Private)**: Automated ACME Let's Encrypt certificate generation for public ALB endpoints via Route53 DNS challenges, and Private Root CA initialization for End-to-End Encryption between the Application Load Balancer and specific EC2 workloads.
+* **HashiCorp Terraform**: Standardized infrastructure-as-code modules for AWS deployments (VPC, EC2, ALB, RDS, Security Groups).
+
+## Demo Components
+
+* **Network Architecture**: Foundational AWS VPC, Public/Private Subnets, and NAT Gateway.
+* **Web Application (Dynamic)**: An EC2 instance running a Python Flask application that fetches database parameters.
+* **Web Application (Static)**: A baseline deployment mimicking traditional manual AWS configuration (Coming soon).
+* **Database**: AWS RDS PostgreSQL instance serving as the application backend.
+* **Load Balancing & DNS**: Application Load Balancer securing incoming internet traffic using Vault-minted certificates, mapped via Route53.
+
+## How this demo works
+
+Terraform provisions the AWS networking and compute infrastructure. For the dynamic track, it automatically bootstraps the Vault environment, mounting the PKI, OS, and Database Secret engines. The EC2 web server starts up and dynamically connects to the PostgreSQL RDS database using parameters injected via Terraform/Vault, serving a web UI with verified TLS certificates.
+
+## Demo Value Proposition
+
+1. **Zero Trust Security**: Eliminates static, long-lived SSH keys and database passwords.
+2. **Automated Certificate Lifecycle**: Drastically reduces the operational overhead of PKI renewal and provisioning.
+3. **Standardization**: Illustrates the shift from disparate, manual AWS resource creation to modular, scalable Terraform code managing Vault integrations seamlessly.
+
+## How to Conduct the Demo
+
+1. **Showcase the Web App:**
+   Navigate to the `website_url` output (e.g. `https://web-dynamic.benoit-blais.sbx.hashidemos.io`) to show the secured application running correctly with valid Let's Encrypt certificates.
+2. **Demonstrate Dynamic OS Access:**
+   * In the Vault UI or via CLI, request a dynamic credential for the Linux application user: `vault read demo_os_secret/creds/web-dynamic/appuser`
+   * Retrieve the generated username and one-time password.
+   * SSH into the EC2 instance using the public IP and authenticate with this temporary credential.
+3. **Demonstrate Automated OS Password Rotation:**
+   * In the Vault UI, navigate to the `demo_os_secret` backend and optionally trigger a force rotation of the `linuxadmin` parent account.
+   * Alternately, wait 5 minutes.
+   * Attempt to SSH using the previously retrieved dynamic credential. The connection will be rejected since Vault has automatically rolled the local Linux user password seamlessly in the background (configured for an aggressive 300s / 5-minute rotation period for the demo).
+4. **Demonstrate Dynamic Database Credentials:**
+   * *Prerequisite*: Add your laptop IP to the Terraform `admin_laptop_ip` variable to allow external DB connections.
+   * Request a temporary database credential: `vault read demo_database/creds/webapp`
+   * Connect directly to the AWS RDS instance using these credentials (e.g., using `psql`, PGAdmin or DBeaver). Provide the RDS Endpoint output from Terraform as the host.
+   * Update a record in the `demo_content` table to showcase real-time read/write access:
+     ```sql
+     UPDATE demo_content SET message = 'Live Vault Demo Successful!' WHERE id = 1;
+     ```
+   * Reload the web page to show the live database update.
+5. **Wait for Expiration:**
+   * Wait a few minutes for the TTL to expire (the default demo database lease is an ultra-short **300s / 5 minutes**), or actively revoke the lease in Vault to forcefully bypass the timer.
+   * Attempt to connect to the database again using the identical dynamic credentials. Access will be explicitly denied, proving zero-trust enforcement.
+
+## Expected Behavior
+
+* The web server will output a success message pulling live data from the database.
+* You will be able to retrieve temporary passwords from Vault.
+* Direct database and OS access using expired Vault passwords will be explicitly denied.
+
+## Permissions & Authentication
+
+### AWS Provider
+
+To provision resources on AWS, Terraform requires authentication. You can authenticate using any of the standard methods supported by the AWS Provider.
+
+* **OIDC via HCP Terraform (Recommended)**: For VCS-driven workflows, configure HCP Terraform to use Dynamic Provider Credentials to assume an AWS IAM role.
+* **Environment Variables**: Export standard AWS credentials for local debugging.
+  ```bash
+  export AWS_ACCESS_KEY_ID="anaccesskey"
+  export AWS_SECRET_ACCESS_KEY="asecretkey"
+  export AWS_SESSION_TOKEN="asessiontoken" # optional
+  export AWS_REGION="ca-central-1"
+  ```
+* **Shared Credentials File**: Use an AWS profile defined in `~/.aws/credentials`.
+
+**Required IAM Permissions**: The role or user must have sufficient rights to manage VPCs, Subnets, EC2 Instances, Route53 Zones/Records, Application Load Balancers, Target Groups, ACM Certificates, IAM Roles/Profiles, and RDS instances.
+
+### Vault Provider
+
+The `vault` provider must be configured to communicate with your HashiCorp Vault cluster.
+
+* **HCP Terraform / JWT Auth (Recommended)**: Configure Vault to trust HCP Terraform workspace identities via JWT authentication.
+* **Environment Variables**: Provide the Vault address and token for local runs.
+  ```bash
+  export VAULT_ADDR="https://vault.example.com:8200"
+  export VAULT_TOKEN="hvs.abc123def456"
+  ```
+
+**Required Vault Permissions**: The token must be attached to a policy granting administrative rights to mount secret engines (`sys/mounts/*`), configure `pki`, `pki-external-ca`, `os`, and `database` engines, and create corresponding roles and policies.
 
 ## Documentation
 
@@ -67,6 +160,12 @@ Description: (Required) The URL of your Vault instance.
 
 Type: `string`
 
+### <a name="input_vault_server_ip"></a> [vault\_server\_ip](#input\_vault\_server\_ip)
+
+Description: (Required) The public IP address of the Vault server allowed to access the RDS database.
+
+Type: `string`
+
 ### <a name="input_vault_token"></a> [vault\_token](#input\_vault\_token)
 
 Description: (Required) Vault token with administrative privileges.
@@ -77,6 +176,22 @@ Type: `string`
 
 The following input variables are optional (have default values):
 
+### <a name="input_acme_email"></a> [acme\_email](#input\_acme\_email)
+
+Description: (Optional) Email address for Let's Encrypt ACME account registration.
+
+Type: `string`
+
+Default: `"benoit.blais@ibm.com"`
+
+### <a name="input_admin_laptop_ip"></a> [admin\_laptop\_ip](#input\_admin\_laptop\_ip)
+
+Description: (Optional) Public IP of your local laptop allowed to connect directly to the RDS instance for demo verification. Needs /32 suffix.
+
+Type: `string`
+
+Default: `""`
+
 ### <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region)
 
 Description: (Optional) The AWS region to deploy resources into.
@@ -85,13 +200,21 @@ Type: `string`
 
 Default: `"ca-central-1"`
 
-### <a name="input_vault_server_ip"></a> [vault\_server\_ip](#input\_vault\_server\_ip)
+### <a name="input_private_hosted_zone"></a> [private\_hosted\_zone](#input\_private\_hosted\_zone)
 
-Description: (Optional) The public IP address of the Vault server allowed to access the RDS database.
+Description: (Optional) Private Route53 Hosted Zone domain name for Vault internal PKI.
 
 Type: `string`
 
-Default: `"3.86.9.84"`
+Default: `"benoit-blais.sbx.hashidemos.local"`
+
+### <a name="input_public_hosted_zone"></a> [public\_hosted\_zone](#input\_public\_hosted\_zone)
+
+Description: (Optional) Public Route53 Hosted Zone domain name for Let's Encrypt certificates and external DNS.
+
+Type: `string`
+
+Default: `"benoit-blais.sbx.hashidemos.io"`
 
 ### <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr)
 
@@ -100,14 +223,6 @@ Description: (Optional) The CIDR block for the VPC.
 Type: `string`
 
 Default: `"10.0.0.0/16"`
-
-### <a name="input_vpc_name"></a> [vpc\_name](#input\_vpc\_name)
-
-Description: (Optional) The name of the VPC.
-
-Type: `string`
-
-Default: `"web-infra-vpc"`
 
 ## Resources
 
@@ -146,6 +261,7 @@ The following resources are used by this module:
 - [vault_pki_external_ca_secret_backend_order_certificate.web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order_certificate) (resource)
 - [vault_pki_external_ca_secret_backend_order_challenge_fulfilled.dns](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order_challenge_fulfilled) (resource)
 - [vault_pki_external_ca_secret_backend_role.web_cert_role](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_role) (resource)
+- [vault_pki_secret_backend_cert.web_internal](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_cert) (resource)
 - [vault_pki_secret_backend_role.internal_web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_role) (resource)
 - [vault_pki_secret_backend_root_cert.internal_root](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_root_cert) (resource)
 - [vault_policy.host_readers](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) (resource)
@@ -160,33 +276,9 @@ The following resources are used by this module:
 
 The following outputs are exported:
 
-### <a name="output_alb_dns_name"></a> [alb\_dns\_name](#output\_alb\_dns\_name)
-
-Description: The DNS name of the Application Load Balancer.
-
-### <a name="output_linuxadmin_password"></a> [linuxadmin\_password](#output\_linuxadmin\_password)
-
-Description: The auto-generated initial password for the linuxadmin OS user
-
 ### <a name="output_rds_endpoint"></a> [rds\_endpoint](#output\_rds\_endpoint)
 
 Description: The endpoint of the RDS instance
-
-### <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id)
-
-Description: The ID of the VPC.
-
-### <a name="output_vpc_private_subnets"></a> [vpc\_private\_subnets](#output\_vpc\_private\_subnets)
-
-Description: List of private subnets in the VPC.
-
-### <a name="output_vpc_public_subnets"></a> [vpc\_public\_subnets](#output\_vpc\_public\_subnets)
-
-Description: List of public subnets in the VPC.
-
-### <a name="output_web_dynamic_id"></a> [web\_dynamic\_id](#output\_web\_dynamic\_id)
-
-Description: The instance ID of the web server.
 
 ### <a name="output_web_dynamic_public_ip"></a> [web\_dynamic\_public\_ip](#output\_web\_dynamic\_public\_ip)
 

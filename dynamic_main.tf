@@ -322,43 +322,14 @@ path "pki-internal/issue/internal-web-role" {
 POLICY
 }
 
-# IAM User for Vault to query the AWS STS API during authentication
-resource "aws_iam_user" "vault_auth_verifier" {
-  name = "vault-auth-verifier"
-  path = "/"
-}
-
-resource "aws_iam_access_key" "vault_auth_verifier" {
-  user = aws_iam_user.vault_auth_verifier.name
-}
-
-resource "aws_iam_user_policy" "vault_auth_verifier" {
-  name = "vault-auth-verifier-policy"
-  user = aws_iam_user.vault_auth_verifier.name
-
-  # Minimal permission required for Vault to verify the EC2 signed payloads
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action   = ["iam:GetRole", "iam:GetInstanceProfile"]
-        Effect   = "Allow"
-        Resource = "*"
-      }
-    ]
-  })
-}
-
 resource "vault_auth_backend" "aws" {
   namespace = vault_namespace.demo_pki.path_fq
   type      = "aws"
 }
 
 resource "vault_aws_auth_backend_client" "aws" {
-  namespace  = vault_namespace.demo_pki.path_fq
-  backend    = vault_auth_backend.aws.path
-  access_key = aws_iam_access_key.vault_auth_verifier.id
-  secret_key = aws_iam_access_key.vault_auth_verifier.secret
+  namespace = vault_namespace.demo_pki.path_fq
+  backend   = vault_auth_backend.aws.path
 }
 
 resource "vault_aws_auth_backend_role" "web_agent" {

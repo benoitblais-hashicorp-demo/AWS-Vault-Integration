@@ -105,7 +105,7 @@ module "alb_dynamic" {
 
   target_groups = {
     web-dynamic-tg = {
-      name              = "web-dynamic-tg"
+      name_prefix       = "webdyn"
       protocol          = "HTTPS"
       port              = 443
       target_type       = "instance"

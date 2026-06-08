@@ -35,6 +35,10 @@ sed -i 's/^[#]*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/s
 systemctl restart sshd
 
 # 2. Install Flask and psycopg2 for the python web app
+dnf install -y yum-utils
+yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+dnf install -y vault
+
 pip3 install Flask psycopg2-binary pyOpenSSL cryptography
 
 # 3. Wait for the database to be reachable & Seed the Database!
@@ -56,14 +60,42 @@ WHERE NOT EXISTS (SELECT 1 FROM demo_content);
 # 4. Create the Web Application
 mkdir -p /opt/app
 
-# Write the Vault-issued TLS Certificate and Key to disk for Flask to use
-cat << 'EOF_CERT' > /opt/app/cert.pem
-${tls_cert}
-EOF_CERT
+# Configure Vault Agent for Continuous Internal Cert Auto-Rotation
+mkdir -p /opt/vault
 
-cat << 'EOF_KEY' > /opt/app/key.pem
-${tls_private_key}
-EOF_KEY
+cat << 'EOF_VAULT' > /etc/vault.d/agent.hcl
+pid_file = "/var/run/vault-agent.pid"
+
+vault {
+  address = "${vault_address}"
+}
+
+auto_auth {
+  method "aws" {
+    mount_path = "auth/${aws_auth_path}"
+    namespace  = "${pki_namespace}"
+    config = {
+      type = "iam"
+      role = "web-agent-role"
+    }
+  }
+}
+
+template {
+  destination = "/opt/app/bundle.pem"
+  contents = <<EOT
+{{- with secret "pki-internal/issue/internal-web-role" (printf "common_name=web-dynamic.%s" "${private_zone}") "ttl=5m" -}}
+{{ .Data.certificate }}
+{{ .Data.issuing_ca }}
+{{ .Data.private_key }}
+{{- end -}}
+EOT
+  command = "systemctl restart demo-web"
+}
+EOF_VAULT
+
+systemctl enable vault-agent
+systemctl start vault-agent
 
 cat << 'EOF' > /opt/app/app.py
 from flask import Flask
@@ -99,7 +131,7 @@ def index():
         return f"<h1>Database Error</h1><p>{str(e)}</p>"
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=443, ssl_context=('/opt/app/cert.pem', '/opt/app/key.pem'))
+    app.run(host='0.0.0.0', port=443, ssl_context=('/opt/app/bundle.pem', '/opt/app/bundle.pem'))
 EOF
 
 # 5. Run the web application using SystemD

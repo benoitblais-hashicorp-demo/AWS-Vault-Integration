@@ -1,0 +1,55 @@
+name: Vault Certificate Manual Rotation
+
+on:
+  workflow_dispatch:
+    inputs:
+      rotation_reason:
+        description: 'Reason for manual rotation'
+        required: false
+        default: 'Demonstration manual rotation'
+
+permissions:
+  contents: read
+  id-token: write   # Required for Vault JWT/OIDC authentication
+
+jobs:
+  rotate-certificate:
+    name: Rotate Certificate via HCP Terraform
+    runs-on: ubuntu-latest
+    env:
+      TF_CLOUD_ORGANIZATION: "benoitblais-hashicorp"
+      TF_WORKSPACE: ${{ github.event.repository.name }}
+      CONFIG_DIRECTORY: "./"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: 'main'
+
+      - name: Retrieve HCP Terraform Token from Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: jwt
+          namespace: admin/tfe_demo
+          role: ${{ github.event.repository.name }}
+          jwtGithubAudience: vault.workload.identity
+          secrets: |
+            terraform/creds/${{ github.event.repository.name }} token | TF_API_TOKEN
+
+      - name: Upload Configuration
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.3.2
+        id: upload
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          directory: ${{ env.CONFIG_DIRECTORY }}
+
+      - name: Create HCP Terraform Run
+        uses: hashicorp/tfc-workflows-github/actions/create-run@v1.3.2
+        id: create-run
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
+          message: "Certificate Rotation: ${{ github.event.inputs.rotation_reason }}"
+          variables: |
+            force_cert_rotation="${{ github.run_id }}-${{ github.run_number }}"

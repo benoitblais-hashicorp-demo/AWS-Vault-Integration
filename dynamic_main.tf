@@ -177,11 +177,23 @@ resource "vault_pki_external_ca_secret_backend_role" "web_cert_role" {
 # Fetch the existing Route 53 zone for DNS records
 
 # Initiate the ACME Certificate Order with Let's Encrypt via Vault
+resource "time_rotating" "acme_cert" {
+  rotation_days = 30
+
+  triggers = {
+    force_rotation = var.force_cert_rotation
+  }
+}
+
 resource "vault_pki_external_ca_secret_backend_order" "web" {
   namespace   = vault_namespace.demo_pki.path_fq
   mount       = vault_mount.pki_ext_ca.path
   role_name   = vault_pki_external_ca_secret_backend_role.web_cert_role.name
   identifiers = ["web-dynamic.${var.public_hosted_zone}"]
+
+  lifecycle {
+    replace_triggered_by = [time_rotating.acme_cert]
+  }
 }
 
 # Retrieve the DNS-01 challenge instructions from Vault
@@ -298,17 +310,36 @@ resource "vault_pki_secret_backend_role" "internal_web" {
   generate_lease     = true
 }
 
-# 4. Mint a Certificate directly for the EC2 Instance using the Internal Role
-resource "vault_pki_secret_backend_cert" "web_internal" {
-  depends_on = [vault_pki_secret_backend_role.internal_web]
-  namespace  = vault_namespace.demo_pki.path_fq
-  backend    = vault_mount.pki_internal.path
-
-  name        = vault_pki_secret_backend_role.internal_web.name
-  common_name = "web-dynamic.${var.private_hosted_zone}"
-  ttl         = "86400"
+# 4. AWS Authentication for Vault Agent
+# ------------------------------------------------------------------------------
+resource "vault_policy" "agent_pki" {
+  namespace = vault_namespace.demo_pki.path_fq
+  name      = "agent-pki-policy"
+  policy    = <<POLICY
+path "pki-internal/issue/internal-web-role" {
+  capabilities = ["update"]
+}
+POLICY
 }
 
+resource "vault_auth_backend" "aws" {
+  namespace = vault_namespace.demo_pki.path_fq
+  type      = "aws"
+}
+
+resource "vault_aws_auth_backend_client" "aws" {
+  namespace = vault_namespace.demo_pki.path_fq
+  backend   = vault_auth_backend.aws.path
+}
+
+resource "vault_aws_auth_backend_role" "web_agent" {
+  namespace                = vault_namespace.demo_pki.path_fq
+  backend                  = vault_auth_backend.aws.path
+  role                     = "web-agent-role"
+  auth_type                = "iam"
+  bound_iam_principal_arns = [aws_iam_role.ssm_role_dynamic.arn]
+  token_policies           = ["default", vault_policy.agent_pki.name]
+}
 
 # Map this directly to the Private IP of our Web Server EC2 instance
 resource "aws_route53_record" "web_internal_dynamic" {
@@ -384,9 +415,11 @@ module "web_dynamic" {
     db_password        = aws_db_instance.db_dynamic.password
     linuxadmin_initial = random_password.os_linuxadmin_password_dynamic.result
     appuser_initial    = random_password.os_appuser_password_dynamic.result
-    # Passing the Vault Internal PKI certificates securely into the startup script
-    tls_cert        = vault_pki_secret_backend_cert.web_internal.certificate
-    tls_private_key = vault_pki_secret_backend_cert.web_internal.private_key
+    # Passing Vault config to the EC2 so Vault Agent can authenticate via AWS IAM and auto-rotate internal certs
+    vault_address = var.vault_address
+    pki_namespace = vault_namespace.demo_pki.path_fq
+    aws_auth_path = vault_auth_backend.aws.path
+    private_zone  = var.private_hosted_zone
   })
   user_data_replace_on_change = true
 

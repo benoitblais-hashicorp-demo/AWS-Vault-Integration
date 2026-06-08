@@ -35,7 +35,7 @@ sed -i 's/^[#]*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/s
 systemctl restart sshd
 
 # 2. Install Flask and psycopg2 for the python web app
-pip3 install Flask psycopg2-binary
+pip3 install Flask psycopg2-binary pyOpenSSL cryptography
 
 # 3. Wait for the database to be reachable & Seed the Database!
 export PGPASSWORD='${db_password}'
@@ -55,6 +55,16 @@ WHERE NOT EXISTS (SELECT 1 FROM demo_content);
 
 # 4. Create the Web Application
 mkdir -p /opt/app
+
+# Write the Vault-issued TLS Certificate and Key to disk for Flask to use
+cat << 'EOF_CERT' > /opt/app/cert.pem
+${tls_cert}
+EOF_CERT
+
+cat << 'EOF_KEY' > /opt/app/key.pem
+${tls_private_key}
+EOF_KEY
+
 cat << 'EOF' > /opt/app/app.py
 from flask import Flask
 import psycopg2
@@ -89,7 +99,7 @@ def index():
         return f"<h1>Database Error</h1><p>{str(e)}</p>"
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=80)
+    app.run(host='0.0.0.0', port=443, ssl_context=('/opt/app/cert.pem', '/opt/app/key.pem'))
 EOF
 
 # 5. Run the web application using SystemD

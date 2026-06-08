@@ -16,7 +16,7 @@ This demo showcases the power of HashiCorp Vault in centralizing and automating 
 ## Demo Components
 
 * **Network Architecture**: Foundational AWS VPC, Public/Private Subnets, and NAT Gateway.
-* **Web Application (Dynamic)**: An EC2 instance running a Python Flask application that fetches database parameters. 
+* **Web Application (Dynamic)**: An EC2 instance running a Python Flask application that fetches database parameters.
 * **Web Application (Static)**: A baseline deployment mimicking traditional manual AWS configuration (Coming soon).
 * **Database**: AWS RDS PostgreSQL instance serving as the application backend.
 * **Load Balancing & DNS**: Application Load Balancer securing incoming internet traffic using Vault-minted certificates, mapped via Route53.
@@ -33,7 +33,7 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
 
 ## How to Conduct the Demo
 
-1. **Showcase the Web App:** 
+1. **Showcase the Web App:**
    Navigate to the `website_url` output (e.g. `https://web-dynamic.benoit-blais.sbx.hashidemos.io`) to show the secured application running correctly with valid Let's Encrypt certificates.
 2. **Demonstrate Dynamic OS Access:**
    * In the Vault UI or via CLI, request a dynamic credential for the Linux application user: `vault read demo_os_secret/creds/web-dynamic/appuser`
@@ -48,12 +48,14 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
    * Request a temporary database credential: `vault read demo_database/creds/webapp`
    * Connect directly to the AWS RDS instance using these credentials (e.g., using `psql`, PGAdmin or DBeaver). Provide the RDS Endpoint output from Terraform as the host.
    * Update a record in the `demo_content` table to showcase real-time read/write access:
+
      ```sql
      UPDATE demo_content SET message = 'Live Vault Demo Successful!' WHERE id = 1;
      ```
+
    * Reload the web page to show the live database update.
-5. **Wait for Expiration:** 
-   * Wait a few minutes for the TTL to expire (the default demo database lease is an ultra-short **300s / 5 minutes**), or actively revoke the lease in Vault to forcefully bypass the timer. 
+5. **Wait for Expiration:**
+   * Wait a few minutes for the TTL to expire (the default demo database lease is an ultra-short **300s / 5 minutes**), or actively revoke the lease in Vault to forcefully bypass the timer.
    * Attempt to connect to the database again using the identical dynamic credentials. Access will be explicitly denied, proving zero-trust enforcement.
 
 ## Expected Behavior
@@ -70,12 +72,14 @@ To provision resources on AWS, Terraform requires authentication. You can authen
 
 * **OIDC via HCP Terraform (Recommended)**: For VCS-driven workflows, configure HCP Terraform to use Dynamic Provider Credentials to assume an AWS IAM role.
 * **Environment Variables**: Export standard AWS credentials for local debugging.
+
   ```bash
   export AWS_ACCESS_KEY_ID="anaccesskey"
   export AWS_SECRET_ACCESS_KEY="asecretkey"
   export AWS_SESSION_TOKEN="asessiontoken" # optional
   export AWS_REGION="ca-central-1"
   ```
+
 * **Shared Credentials File**: Use an AWS profile defined in `~/.aws/credentials`.
 
 **Required IAM Permissions**: The role or user must have sufficient rights to manage VPCs, Subnets, EC2 Instances, Route53 Zones/Records, Application Load Balancers, Target Groups, ACM Certificates, IAM Roles/Profiles, and RDS instances.
@@ -86,6 +90,7 @@ The `vault` provider must be configured to communicate with your HashiCorp Vault
 
 * **HCP Terraform / JWT Auth (Recommended)**: Configure Vault to trust HCP Terraform workspace identities via JWT authentication.
 * **Environment Variables**: Provide the Vault address and token for local runs.
+
   ```bash
   export VAULT_ADDR="https://vault.example.com:8200"
   export VAULT_TOKEN="hvs.abc123def456"

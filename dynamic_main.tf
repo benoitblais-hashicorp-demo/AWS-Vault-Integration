@@ -36,8 +36,8 @@ module "web_dynamic_sg" {
   # Only allow traffic from the ALB
   ingress_with_source_security_group_id = [
     {
-      # The ALB terminates HTTPS and forwards to the target group over HTTP port 80
-      rule                     = "http-80-tcp"
+      # The ALB terminates public HTTPS and forwards to the target group over internal HTTPS port 443
+      rule                     = "https-443-tcp"
       source_security_group_id = module.alb_dynamic_sg.security_group_id
     }
   ]
@@ -106,8 +106,8 @@ module "alb_dynamic" {
   target_groups = {
     web-dynamic-tg = {
       name              = "web-dynamic-tg"
-      protocol          = "HTTP"
-      port              = 80
+      protocol          = "HTTPS"
+      port              = 443
       target_type       = "instance"
       create_attachment = false # We attach it below
     }
@@ -118,7 +118,7 @@ module "alb_dynamic" {
 resource "aws_lb_target_group_attachment" "web_dynamic" {
   target_group_arn = module.alb_dynamic.target_groups["web-dynamic-tg"].arn
   target_id        = module.web_dynamic.id
-  port             = 80
+  port             = 443
 }
 
 # PUBLIC CERTIFICATE ORCHESTRATION (VAULT + ACME + AWS)
@@ -298,6 +298,17 @@ resource "vault_pki_secret_backend_role" "internal_web" {
   generate_lease     = true
 }
 
+# 4. Mint a Certificate directly for the EC2 Instance using the Internal Role
+resource "vault_pki_secret_backend_cert" "web_internal" {
+  depends_on = [vault_pki_secret_backend_role.internal_web]
+  namespace  = vault_namespace.demo_pki.path_fq
+  backend    = vault_mount.pki_internal.path
+
+  name        = vault_pki_secret_backend_role.internal_web.name
+  common_name = "web-dynamic.${var.private_hosted_zone}"
+  ttl         = "86400"
+}
+
 
 # Map this directly to the Private IP of our Web Server EC2 instance
 resource "aws_route53_record" "web_internal_dynamic" {
@@ -373,6 +384,9 @@ module "web_dynamic" {
     db_password        = aws_db_instance.db_dynamic.password
     linuxadmin_initial = random_password.os_linuxadmin_password_dynamic.result
     appuser_initial    = random_password.os_appuser_password_dynamic.result
+    # Passing the Vault Internal PKI certificates securely into the startup script
+    tls_cert        = vault_pki_secret_backend_cert.web_internal.certificate
+    tls_private_key = vault_pki_secret_backend_cert.web_internal.private_key
   })
   user_data_replace_on_change = true
 

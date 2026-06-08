@@ -11,7 +11,7 @@ This demo showcases the power of HashiCorp Vault in centralizing and automating 
 
 * **Vault OS Secrets Engine**: Dynamic, time-to-live (TTL) bound SSH credentials for EC2 instances.
 * **Vault Database Secrets Engine**: Ephemeral PostgreSQL database credentials to ensure zero-trust database access.
-* **Vault PKI (Public & Private)**: Automated ACME Let's Encrypt certificate generation for public ALB endpoints via Route53 DNS challenges, and Private Root CA initialization for internal DNS routing.
+* **Vault PKI (Public & Private)**: Automated ACME Let's Encrypt certificate generation for public ALB endpoints via Route53 DNS challenges, and Private Root CA initialization for End-to-End Encryption between the Application Load Balancer and specific EC2 workloads.
 * **HashiCorp Terraform**: Standardized infrastructure-as-code modules for AWS deployments (VPC, EC2, ALB, RDS, Security Groups).
 
 ## Demo Components
@@ -43,15 +43,17 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
 3. **Demonstrate Automated OS Password Rotation:**
    * In the Vault UI, navigate to the `demo_os_secret` backend and optionally trigger a force rotation of the `linuxadmin` parent account.
    * Alternately, wait 5 minutes.
-   * Attempt to SSH using the previously outputted Terraform `linuxadmin_password`. The connection will be rejected since Vault has automatically rolled the local Linux user password seamlessly in the background (configured for an aggressive 300s / 5-minute rotation period for the demo).
+   * Attempt to SSH using the previously retrieved dynamic credential. The connection will be rejected since Vault has automatically rolled the local Linux user password seamlessly in the background (configured for an aggressive 300s / 5-minute rotation period for the demo).
 4. **Demonstrate Dynamic Database Credentials:**
    * *Prerequisite*: Add your laptop IP to the Terraform `admin_laptop_ip` variable to allow external DB connections.
    * Request a temporary database credential: `vault read demo_database/creds/webapp`
    * Connect directly to the AWS RDS instance using these credentials (e.g., using `psql`, PGAdmin or DBeaver). Provide the RDS Endpoint output from Terraform as the host.
    * Update a record in the `demo_content` table to showcase real-time read/write access:
+
      ```sql
      UPDATE demo_content SET message = 'Live Vault Demo Successful!' WHERE id = 1;
      ```
+
    * Reload the web page to show the live database update.
 5. **Wait for Expiration:**
    * Wait a few minutes for the TTL to expire (the default demo database lease is an ultra-short **300s / 5 minutes**), or actively revoke the lease in Vault to forcefully bypass the timer.
@@ -71,12 +73,14 @@ To provision resources on AWS, Terraform requires authentication. You can authen
 
 * **OIDC via HCP Terraform (Recommended)**: For VCS-driven workflows, configure HCP Terraform to use Dynamic Provider Credentials to assume an AWS IAM role.
 * **Environment Variables**: Export standard AWS credentials for local debugging.
+
   ```bash
   export AWS_ACCESS_KEY_ID="anaccesskey"
   export AWS_SECRET_ACCESS_KEY="asecretkey"
   export AWS_SESSION_TOKEN="asessiontoken" # optional
   export AWS_REGION="ca-central-1"
   ```
+
 * **Shared Credentials File**: Use an AWS profile defined in `~/.aws/credentials`.
 
 **Required IAM Permissions**: The role or user must have sufficient rights to manage VPCs, Subnets, EC2 Instances, Route53 Zones/Records, Application Load Balancers, Target Groups, ACM Certificates, IAM Roles/Profiles, and RDS instances.
@@ -87,6 +91,7 @@ The `vault` provider must be configured to communicate with your HashiCorp Vault
 
 * **HCP Terraform / JWT Auth (Recommended)**: Configure Vault to trust HCP Terraform workspace identities via JWT authentication.
 * **Environment Variables**: Provide the Vault address and token for local runs.
+
   ```bash
   export VAULT_ADDR="https://vault.example.com:8200"
   export VAULT_TOKEN="hvs.abc123def456"
@@ -261,6 +266,7 @@ The following resources are used by this module:
 - [vault_pki_external_ca_secret_backend_order_certificate.web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order_certificate) (resource)
 - [vault_pki_external_ca_secret_backend_order_challenge_fulfilled.dns](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order_challenge_fulfilled) (resource)
 - [vault_pki_external_ca_secret_backend_role.web_cert_role](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_role) (resource)
+- [vault_pki_secret_backend_cert.web_internal](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_cert) (resource)
 - [vault_pki_secret_backend_role.internal_web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_role) (resource)
 - [vault_pki_secret_backend_root_cert.internal_root](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_root_cert) (resource)
 - [vault_policy.host_readers](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) (resource)

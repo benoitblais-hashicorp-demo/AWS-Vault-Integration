@@ -4,7 +4,9 @@ This file provides instructions for AI coding agents working on this Terraform P
 
 ## Project Overview
 
-This project provides an end-to-end Terraform architecture demonstrating HashiCorp Vault integrations. It deploys core AWS infrastructure (VPC, EC2, RDS, ALB) and contrasts a typical static adoption methodology against a fully standardized, dynamic Vault architecture. Vault orchestrates dynamic OS credentials, dynamic PostgreSQL passwords, and comprehensive public/private PKI (Let's Encrypt / Root CA) integration.
+This project provides an end-to-end Terraform architecture demonstrating HashiCorp Vault integrations.
+It deploys core AWS infrastructure (VPC, EC2, RDS, ALB) and contrasts a typical static adoption methodology against a fully standardized, dynamic Vault architecture.
+Vault orchestrates dynamic OS credentials, dynamic PostgreSQL passwords, and comprehensive public/private PKI (Let's Encrypt / Root CA) integration.
 
 ## Module and Repository Structure
 
@@ -16,7 +18,6 @@ Organize your Terraform project as follows to preserve the boundaries between th
 ├── README.md
 ├── data.tf
 ├── network_main.tf
-├── network_outputs.tf
 ├── network_variables.tf
 ├── dynamic_main.tf
 ├── dynamic_outputs.tf
@@ -58,6 +59,7 @@ Organize your Terraform project as follows to preserve the boundaries between th
 ## README_header.md
 
 When editing or creating `docs/README_header.md`, ensure it contains:
+
 - A description of the general purpose of the code.
 - A `Permissions` section containing the permissions required to provision resources for each provider.
 - An `Authentications` section containing the authentication details required for each provider.
@@ -66,6 +68,7 @@ When editing or creating `docs/README_header.md`, ensure it contains:
 ## README_footer.md
 
 When editing or creating `docs/README_footer.md`, ensure it contains:
+
 - An `External Documentation` section providing links to relevant external documentation used to develop the code (e.g., HashiCorp Vault Provider docs, AWS Secrets Engine documentation, Vault JWT Auth Method, and AWS Provider docs).
 
 ## Code Guidelines

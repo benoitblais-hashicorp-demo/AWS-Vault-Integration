@@ -38,21 +38,31 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
 1. **Showcase the Web App:**
    Navigate to the `website_url` output (e.g. `https://web-dynamic.benoit-blais.sbx.hashidemos.io`) to show the secured application running correctly with valid Let's Encrypt certificates.
 2. **Demonstrate Dynamic OS Access:**
-   * In the Vault UI, navigate to the `demo_os_secret` namespace to show the OS secret engine mount path and the managed host.
-   * From the Vault CLI, request a dynamic credential for the Linux admin user: `vault read os/hosts/web-dynamic/accounts/linuxadmin/creds`
+   * In the Vault UI, navigate to the `demo_os_secret` namespace to show the OS secret engine mount path.
+   * From the Vault CLI, show the managed host: `vault list os/hosts`
+   * Request a dynamic credential for the Linux admin user: `vault read os/hosts/web-dynamic/accounts/linuxadmin/creds`
    * Retrieve the generated username and one-time password.
    * SSH into the EC2 instance using the public IP and authenticate with this temporary credential.
 3. **Demonstrate Automated Certificate Rotation:**
-   * Show that the application is running via ALB using the Let's Encrypt certificate.
-   * To prove internal End-to-End Encryption rotation, open your terminal and run this command against the EC2 instance directly to view its certificate validity:
+   * **Public Certificate (Let's Encrypt)**: Show that the application is directly running via the Application Load Balancer using a valid Let's Encrypt certificate.
+   * In the Vault UI, navigate to the `demo_pki` namespace and view the `pki-external-ca` (Let's Encrypt) secret engine mount.
+   * To demonstrate public certificate rotation, manually run the repository's configuration workflow to force the rotation of the public certificate. Point out how Terraform and Vault seamlessly orchestrate the ACME DNS-01 challenge and natively update the AWS Certificate Manager (ACM) resource.
+   * **Internal Certificates (End-to-End Encryption)**: In the Vault UI, show the `pki-internal` (Root CA) secret engine mount.
+   * Click into the `pki-internal` engine and view the Certificates list. Point out the high volume of certificates being continuously generated due to the Vault Agent's 5-minute rotation cycle.
+   * While connected to the EC2 instance via SSH, run the following command to view the actual physical bundle managed by Vault Agent:
      ```bash
-     echo | openssl s_client -showcerts -servername web-dynamic.benoit-blais.sbx.hashidemos.local -connect <web_dynamic_public_ip>:443 2>/dev/null | openssl x509 -inform pem -noout -text | grep -A 2 "Validity"
+     openssl x509 -in /opt/app/bundle.pem -text -noout | grep -A 2 "Validity"
      ```
-   * Wait 5 minutes and run the command again. You will see the "Not Before" and "Not After" times shift forward exactly 5 minutes, proving Vault Agent is actively rotating the internal TLS certificates without human intervention.
+   * To prove the web server is actively serving traffic using this rapidly rotating certificate, run the following command directly on the EC2 instance to poll the local listener:
+     ```bash
+     curl -v --cacert /opt/app/bundle.pem https://localhost/ 2>&1 | grep "expire date"
+     ```
+   * Wait 5 minutes and run the commands again. You will see the "Not Before" and "Not After" times sequentially shift forward on both the file and the web server response, proving Vault Agent is fetching new TLS certificates and seamlessly restarting the web service without human intervention.
 4. **Demonstrate Automated OS Password Rotation:**
-   * In the Vault UI, navigate to the `demo_os_secret` backend and optionally trigger a force rotation of the `linuxadmin` parent account.
-   * Alternately, wait 5 minutes.
-   * Attempt to SSH using the previously retrieved dynamic credential. The connection will be rejected since Vault has automatically rolled the local Linux user password seamlessly in the background (configured for an aggressive 300s / 5-minute rotation period for the demo).
+   * To forcefully trigger an immediate password rotation so you don't have to wait 5 minutes, run this command from the Vault CLI: `vault write -force os/hosts/web-dynamic/accounts/linuxadmin/rotate`
+   * Request the credential again to observe that the version has incremented and the password has completely changed: `vault read os/hosts/web-dynamic/accounts/linuxadmin/creds`
+   * Attempt to SSH using the *first* (previously retrieved) dynamic credential. The connection will be rejected since Vault has rolled the local Linux user password seamlessly in the background (configured for an aggressive 300s / 5-minute rotation period for the demo).
+   * Demonstrate that SSH access is immediately permitted when using the newly minted password.
 5. **Demonstrate Dynamic Database Credentials:**
    * *Prerequisite*: Add your laptop IP to the Terraform `admin_laptop_ip` variable to allow external DB connections.
    * Request a temporary database credential: `vault read demo_database/creds/webapp`

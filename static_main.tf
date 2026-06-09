@@ -112,7 +112,7 @@ resource "aws_secretsmanager_secret" "db_password" {
 }
 
 resource "aws_secretsmanager_secret_version" "db_password" {
-  secret_id     = aws_secretsmanager_secret.db_password.id
+  secret_id = aws_secretsmanager_secret.db_password.id
   secret_string = jsonencode({
     username = "dbadmin"
     password = random_password.db_password_static.result
@@ -135,7 +135,7 @@ resource "aws_db_subnet_group" "static" {
 resource "aws_db_instance" "db_static" {
   identifier        = "vault-demo-postgres-static"
   engine            = "postgres"
-  engine_version    = "15" 
+  engine_version    = "15"
   instance_class    = "db.t3.micro"
   allocated_storage = 20
   db_name           = "appdb"

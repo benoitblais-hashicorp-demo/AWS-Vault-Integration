@@ -378,16 +378,15 @@ resource "aws_iam_instance_profile" "ssm_profile_dynamic" {
 
 # Generate passwords for EC2 OS users natively in Terraform to bootstrap the Vault OS Secret Engine
 resource "random_password" "os_linuxadmin_password_dynamic" {
-  length  = 32
-  special = true
-  # Exclude characters that could cause shell evaluation issues or password parsing problems
-  override_special = "!#%&*()-_=+[]{}<>"
+  length           = 32
+  special          = true
+  override_special = "-_"
 }
 
 resource "random_password" "os_appuser_password_dynamic" {
   length           = 32
   special          = true
-  override_special = "!#%&*()-_=+[]{}<>"
+  override_special = "-_"
 }
 
 # EC2 Instance utilizing official AWS module

@@ -18,10 +18,10 @@ This demo showcases the power of HashiCorp Vault in centralizing and automating 
 ## Demo Components
 
 * **Network Architecture**: Foundational AWS VPC, Public/Private Subnets, and NAT Gateway.
-* **Web Application (Dynamic)**: An EC2 instance running a Python Flask application that fetches database parameters.
-* **Web Application (Static)**: A baseline deployment mimicking traditional manual AWS configuration (Coming soon).
-* **Database**: AWS RDS PostgreSQL instance serving as the application backend.
-* **Load Balancing & DNS**: Application Load Balancer securing incoming internet traffic using Vault-minted certificates, mapped via Route53.
+* **Web Application (Dynamic)**: An EC2 instance securely bootstrapped using Vault dynamically injected credentials, with TLS auto-rotation.
+* **Web Application (Static)**: A baseline deployment mimicking traditional manual AWS configuration, storing long-lived generic credentials in AWS Secrets Manager and offloading public certificates to native AWS ACM.
+* **Databases**: Parallel AWS RDS PostgreSQL instances serving as the application backend for both tracks.
+* **Load Balancing & DNS**: Application Load Balancers securing incoming internet traffic, mapped via Route53.
 
 ## How this demo works
 
@@ -38,8 +38,46 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
 
 *Prerequisite*: Add your laptop IP to the Terraform `admin_laptop_ip` variable to allow external SSH and database connections through the AWS Security Groups.
 
-1. **Showcase the Web App:**
-   Navigate to the `website_url` output (e.g. `https://web-dynamic.benoit-blais.sbx.hashidemos.io`) to show the secured application running correctly with valid Let's Encrypt certificates.
+### Part 1: The Static Track (Traditional Secret Management)
+
+1. **Showcase the Static Web App:**
+   Navigate to the `website_url_static` output to view the static application. Inspect the certificate in your browser to show it was natively issued by Amazon (ACM) and terminates at the Load Balancer level.
+2. **Investigate the Static Infrastructure Secrets:**
+   * Retrieve the static OS credential from AWS Secrets Manager using the ARN provided in the Terraform outputs (either via the AWS Console or using the AWS CLI):
+
+     ```bash
+     aws secretsmanager get-secret-value --secret-id <secrets_manager_os_arn>
+     ```
+
+   * SSH into the static EC2 instance (`web_static_public_ip`) using the `linuxadmin` user and the retrieved static password.
+3. **Expose Hardcoded Application Credentials:**
+   * While connected to the EC2 instance via SSH, inspect the application source code:
+
+     ```bash
+     cat /opt/app/app.py
+     ```
+
+   * Point out the exact database credentials (username and password script block) completely hardcoded in plain-text inside the application code. This demonstrates the inherent risks of static secret distribution at provisioning time.
+4. **Access the Database with Static Credentials:**
+   * Retrieve the static database credentials from Secrets Manager:
+
+     ```bash
+     aws secretsmanager get-secret-value --secret-id <secrets_manager_db_arn>
+     ```
+
+   * Connect to the static RDS instance (using the `rds_endpoint_static` output as the host).
+   * Update the table just as you will in the dynamic demo:
+
+     ```sql
+     UPDATE demo_content SET message = 'Static Manual Demo Update Successful!' WHERE id = 1;
+     ```
+
+   * Highlight that access remains permanently open to whoever holds this static credential until a human manually rotates it and restarts all dependent applications.
+
+### Part 2: The Dynamic Track (HashiCorp Vault Integration)
+
+1. **Showcase the Dynamic Web App:**
+   Navigate to the `website_url` output (e.g. `https://web-dynamic.benoit-blais.sbx.hashidemos.io`) to show the secured application running correctly with valid Let's Encrypt certificates natively orchestrated by Vault.
 2. **Demonstrate Dynamic OS Access:**
    * In the Vault UI, navigate to the `demo_os_secret` namespace to show the OS secret engine mount path.
    * From the Vault CLI, show the managed host: `vault list os/hosts`
@@ -162,11 +200,29 @@ Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
 
 Version: 0.0.2
 
+### <a name="module_alb_static"></a> [alb\_static](#module\_alb\_static)
+
+Source: terraform-aws-modules/alb/aws
+
+Version: ~> 9.0
+
+### <a name="module_alb_static_sg"></a> [alb\_static\_sg](#module\_alb\_static\_sg)
+
+Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
+
+Version: 0.0.2
+
 ### <a name="module_db_dynamic_sg"></a> [db\_dynamic\_sg](#module\_db\_dynamic\_sg)
 
 Source: terraform-aws-modules/security-group/aws
 
 Version: ~> 5.0
+
+### <a name="module_db_static_sg"></a> [db\_static\_sg](#module\_db\_static\_sg)
+
+Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
+
+Version: 0.0.2
 
 ### <a name="module_vpc"></a> [vpc](#module\_vpc)
 
@@ -181,6 +237,18 @@ Source: terraform-aws-modules/ec2-instance/aws
 Version: ~> 5.6
 
 ### <a name="module_web_dynamic_sg"></a> [web\_dynamic\_sg](#module\_web\_dynamic\_sg)
+
+Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
+
+Version: 0.0.2
+
+### <a name="module_web_static"></a> [web\_static](#module\_web\_static)
+
+Source: terraform-aws-modules/ec2-instance/aws
+
+Version: ~> 5.6
+
+### <a name="module_web_static_sg"></a> [web\_static\_sg](#module\_web\_static\_sg)
 
 Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
 
@@ -272,19 +340,38 @@ Default: `"10.0.0.0/16"`
 
 The following resources are used by this module:
 
+- [aws_acm_certificate.static_cert](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate) (resource)
 - [aws_acm_certificate.web_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate) (resource)
+- [aws_acm_certificate_validation.web_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate_validation) (resource)
 - [aws_db_instance.db_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance) (resource)
+- [aws_db_instance.db_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance) (resource)
 - [aws_db_subnet_group.dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group) (resource)
+- [aws_db_subnet_group.static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group) (resource)
 - [aws_iam_instance_profile.ssm_profile_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) (resource)
+- [aws_iam_instance_profile.static_profile](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) (resource)
 - [aws_iam_role.ssm_role_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) (resource)
+- [aws_iam_role.static_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) (resource)
+- [aws_iam_role_policy_attachment.secrets_manager_read](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) (resource)
 - [aws_iam_role_policy_attachment.ssm_core_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) (resource)
+- [aws_iam_role_policy_attachment.ssm_core_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) (resource)
 - [aws_lb_target_group_attachment.web_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment) (resource)
+- [aws_lb_target_group_attachment.web_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment) (resource)
 - [aws_route53_record.acme_challenge_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
+- [aws_route53_record.acme_challenge_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
 - [aws_route53_record.web_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
 - [aws_route53_record.web_internal_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
+- [aws_route53_record.web_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
+- [aws_secretsmanager_secret.db_password](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) (resource)
+- [aws_secretsmanager_secret.os_linuxadmin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) (resource)
+- [aws_secretsmanager_secret_version.db_password](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) (resource)
+- [aws_secretsmanager_secret_version.os_linuxadmin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) (resource)
+- [random_id.static_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) (resource)
 - [random_password.db_password_dynamic](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
+- [random_password.db_password_static](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
 - [random_password.os_appuser_password_dynamic](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
+- [random_password.os_appuser_password_static](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
 - [random_password.os_linuxadmin_password_dynamic](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
+- [random_password.os_linuxadmin_password_static](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
 - [time_rotating.acme_cert](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/rotating) (resource)
 - [time_sleep.wait_for_web_dynamic](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/sleep) (resource)
 - [vault_auth_backend.aws](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/auth_backend) (resource)
@@ -316,6 +403,7 @@ The following resources are used by this module:
 - [vault_policy.webapp_db_policy](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) (resource)
 - [aws_ami.rhel9](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ami) (data source)
 - [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) (data source)
+- [aws_iam_policy_document.static_assume_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) (data source)
 - [aws_route53_zone.demo](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route53_zone) (data source)
 - [aws_route53_zone.internal](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route53_zone) (data source)
 - [vault_pki_external_ca_secret_backend_order_challenge.dns](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/pki_external_ca_secret_backend_order_challenge) (data source)
@@ -328,13 +416,33 @@ The following outputs are exported:
 
 Description: The endpoint of the RDS instance
 
+### <a name="output_rds_endpoint_static"></a> [rds\_endpoint\_static](#output\_rds\_endpoint\_static)
+
+Description: The endpoint of the Static RDS instance
+
+### <a name="output_secrets_manager_db_arn"></a> [secrets\_manager\_db\_arn](#output\_secrets\_manager\_db\_arn)
+
+Description: The ARN of the AWS Secret containing the static Database passwords
+
+### <a name="output_secrets_manager_os_arn"></a> [secrets\_manager\_os\_arn](#output\_secrets\_manager\_os\_arn)
+
+Description: The ARN of the AWS Secret containing the static OS passwords
+
 ### <a name="output_web_dynamic_public_ip"></a> [web\_dynamic\_public\_ip](#output\_web\_dynamic\_public\_ip)
 
 Description: The public IP of the web server
 
+### <a name="output_web_static_public_ip"></a> [web\_static\_public\_ip](#output\_web\_static\_public\_ip)
+
+Description: The public IP of the Static web server
+
 ### <a name="output_website_url"></a> [website\_url](#output\_website\_url)
 
 Description: The final secured URL of your application
+
+### <a name="output_website_url_static"></a> [website\_url\_static](#output\_website\_url\_static)
+
+Description: The URL of the static application
 
 <!-- markdownlint-enable -->
 <!-- END_TF_DOCS -->

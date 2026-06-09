@@ -86,7 +86,9 @@ template {
   contents = <<EOT
 {{- with secret "pki-internal/issue/internal-web-role" (printf "common_name=web-dynamic.%s" "${private_zone}") "ttl=5m" -}}
 {{ .Data.certificate }}
+
 {{ .Data.issuing_ca }}
+
 {{ .Data.private_key }}
 {{- end -}}
 EOT
@@ -94,8 +96,21 @@ EOT
 }
 EOF_VAULT
 
-systemctl enable vault-agent
-systemctl start vault-agent
+cat << 'EOF_VAULT_SVC' > /etc/systemd/system/vault-agent.service
+[Unit]
+Description=Vault Agent
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Restart=on-failure
+ExecStart=/usr/bin/vault agent -config=/etc/vault.d/agent.hcl
+ExecReload=/bin/kill -HUP $MAINPID
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
+EOF_VAULT_SVC
 
 cat << 'EOF' > /opt/app/app.py
 from flask import Flask
@@ -151,6 +166,12 @@ EOF
 
 systemctl daemon-reload
 systemctl enable demo-web
-systemctl start demo-web
+systemctl enable vault-agent
+
+systemctl start vault-agent
+# Give Vault Agent a moment to authenticate and fetch the initial certificate
+sleep 3
+# Start the web service; if Vault Agent already restarted it via the template command, this is a no-op harmless call
+systemctl start demo-web || true
 
 echo "Initialization Complete"

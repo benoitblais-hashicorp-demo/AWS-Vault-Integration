@@ -36,14 +36,21 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
 1. **Showcase the Web App:**
    Navigate to the `website_url` output (e.g. `https://web-dynamic.benoit-blais.sbx.hashidemos.io`) to show the secured application running correctly with valid Let's Encrypt certificates.
 2. **Demonstrate Dynamic OS Access:**
-   * In the Vault UI or via CLI, request a dynamic credential for the Linux application user: `vault read demo_os_secret/creds/web-dynamic/appuser`
+   * In the Vault UI or via CLI, request a dynamic credential for the Linux admin user: `vault read -namespace=demo_os_secret os/hosts/web-dynamic/accounts/linuxadmin`
    * Retrieve the generated username and one-time password.
    * SSH into the EC2 instance using the public IP and authenticate with this temporary credential.
-3. **Demonstrate Automated OS Password Rotation:**
+3. **Demonstrate Automated Certificate Rotation:**
+   * Show that the application is running via ALB using the Let's Encrypt certificate.
+   * To prove internal End-to-End Encryption rotation, open your terminal and run this command against the EC2 instance directly to view its certificate validity:
+     ```bash
+     echo | openssl s_client -showcerts -servername web-dynamic.benoit-blais.sbx.hashidemos.local -connect <web_dynamic_public_ip>:443 2>/dev/null | openssl x509 -inform pem -noout -text | grep -A 2 "Validity"
+     ```
+   * Wait 5 minutes and run the command again. You will see the "Not Before" and "Not After" times shift forward exactly 5 minutes, proving Vault Agent is actively rotating the internal TLS certificates without human intervention.
+4. **Demonstrate Automated OS Password Rotation:**
    * In the Vault UI, navigate to the `demo_os_secret` backend and optionally trigger a force rotation of the `linuxadmin` parent account.
    * Alternately, wait 5 minutes.
    * Attempt to SSH using the previously retrieved dynamic credential. The connection will be rejected since Vault has automatically rolled the local Linux user password seamlessly in the background (configured for an aggressive 300s / 5-minute rotation period for the demo).
-4. **Demonstrate Dynamic Database Credentials:**
+5. **Demonstrate Dynamic Database Credentials:**
    * *Prerequisite*: Add your laptop IP to the Terraform `admin_laptop_ip` variable to allow external DB connections.
    * Request a temporary database credential: `vault read demo_database/creds/webapp`
    * Connect directly to the AWS RDS instance using these credentials (e.g., using `psql`, PGAdmin or DBeaver). Provide the RDS Endpoint output from Terraform as the host.
@@ -54,7 +61,7 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
      ```
 
    * Reload the web page to show the live database update.
-5. **Wait for Expiration:**
+6. **Wait for Expiration:**
    * Wait a few minutes for the TTL to expire (the default demo database lease is an ultra-short **300s / 5 minutes**), or actively revoke the lease in Vault to forcefully bypass the timer.
    * Attempt to connect to the database again using the identical dynamic credentials. Access will be explicitly denied, proving zero-trust enforcement.
 

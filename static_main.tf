@@ -153,7 +153,7 @@ resource "aws_db_instance" "db_static" {
 # ------------------------------------------------------------------------------
 
 # Issue Public TLS validation entirely through ACM natively
-resource "aws_acm_certificate" "web_static" {
+resource "aws_acm_certificate" "static_cert" {
   domain_name       = "web-static.${var.public_hosted_zone}"
   validation_method = "DNS"
 
@@ -164,7 +164,7 @@ resource "aws_acm_certificate" "web_static" {
 
 resource "aws_route53_record" "acme_challenge_static" {
   for_each = {
-    for dvo in aws_acm_certificate.web_static.domain_validation_options : dvo.domain_name => {
+    for dvo in aws_acm_certificate.static_cert.domain_validation_options : dvo.domain_name => {
       name   = dvo.resource_record_name
       record = dvo.resource_record_value
       type   = dvo.resource_record_type
@@ -179,7 +179,7 @@ resource "aws_route53_record" "acme_challenge_static" {
 }
 
 resource "aws_acm_certificate_validation" "web_static" {
-  certificate_arn         = aws_acm_certificate.web_static.arn
+  certificate_arn         = aws_acm_certificate.static_cert.arn
   validation_record_fqdns = [for record in aws_route53_record.acme_challenge_static : record.fqdn]
 }
 
@@ -210,7 +210,7 @@ module "alb_static" {
     https = {
       port            = 443
       protocol        = "HTTPS"
-      certificate_arn = aws_acm_certificate.web_static.arn
+      certificate_arn = aws_acm_certificate.static_cert.arn
 
       forward = {
         target_group_key = "web-static-tg"

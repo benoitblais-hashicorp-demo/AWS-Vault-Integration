@@ -210,7 +210,8 @@ module "alb_static" {
     https = {
       port            = 443
       protocol        = "HTTPS"
-      certificate_arn = aws_acm_certificate.static_cert.arn
+      # Using the validation ARN enforces that Terraform waits for the certificate to be ISSUED
+      certificate_arn = aws_acm_certificate_validation.web_static.certificate_arn
 
       forward = {
         target_group_key = "web-static-tg"

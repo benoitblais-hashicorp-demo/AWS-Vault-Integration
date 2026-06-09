@@ -35,6 +35,8 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
 
 ## How to Conduct the Demo
 
+*Prerequisite*: Add your laptop IP to the Terraform `admin_laptop_ip` variable to allow external SSH and database connections through the AWS Security Groups.
+
 1. **Showcase the Web App:**
    Navigate to the `website_url` output (e.g. `https://web-dynamic.benoit-blais.sbx.hashidemos.io`) to show the secured application running correctly with valid Let's Encrypt certificates.
 2. **Demonstrate Dynamic OS Access:**
@@ -64,7 +66,6 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
    * Attempt to SSH using the *first* (previously retrieved) dynamic credential. The connection will be rejected since Vault has rolled the local Linux user password seamlessly in the background (configured for an aggressive 300s / 5-minute rotation period for the demo).
    * Demonstrate that SSH access is immediately permitted when using the newly minted password.
 5. **Demonstrate Dynamic Database Credentials:**
-   * *Prerequisite*: Add your laptop IP to the Terraform `admin_laptop_ip` variable to allow external DB connections.
    * Request a temporary database credential: `vault read demo_database/creds/webapp`
    * Connect directly to the AWS RDS instance using these credentials (e.g., using `psql`, PGAdmin or DBeaver). Provide the RDS Endpoint output from Terraform as the host.
    * Update a record in the `demo_content` table to showcase real-time read/write access:

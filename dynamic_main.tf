@@ -48,8 +48,15 @@ module "web_dynamic_sg" {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      description = "Temporary open SSH for troubleshooting"
-      cidr_blocks = "0.0.0.0/0"
+      description = "Access from external Vault server"
+      cidr_blocks = "${var.vault_server_ip}/32"
+    },
+    {
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      description = "Access from Admin Laptop for Demo Verification"
+      cidr_blocks = var.admin_laptop_ip != "" ? var.admin_laptop_ip : "127.0.0.1/32"
     }
   ]
 

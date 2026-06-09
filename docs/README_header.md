@@ -52,13 +52,17 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
    * **Internal Certificates (End-to-End Encryption)**: In the Vault UI, show the `pki-internal` (Root CA) secret engine mount.
    * Click into the `pki-internal` engine and view the Certificates list. Point out the high volume of certificates being continuously generated due to the Vault Agent's 5-minute rotation cycle.
    * While connected to the EC2 instance via SSH, run the following command to view the actual physical bundle managed by Vault Agent:
+
      ```bash
      openssl x509 -in /opt/app/bundle.pem -text -noout | grep -A 2 "Validity"
      ```
+
    * To prove the web server is actively serving traffic using this rapidly rotating certificate, run the following command directly on the EC2 instance to poll the local listener:
+
      ```bash
      curl -v --cacert /opt/app/bundle.pem https://localhost/ 2>&1 | grep "expire date"
      ```
+
    * Wait 5 minutes and run the commands again. You will see the "Not Before" and "Not After" times sequentially shift forward on both the file and the web server response, proving Vault Agent is fetching new TLS certificates and seamlessly restarting the web service without human intervention.
 4. **Demonstrate Automated OS Password Rotation:**
    * To forcefully trigger an immediate password rotation so you don't have to wait 5 minutes, run this command from the Vault CLI: `vault write -force os/hosts/web-dynamic/accounts/linuxadmin/rotate`

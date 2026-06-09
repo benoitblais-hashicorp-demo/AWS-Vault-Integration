@@ -453,7 +453,7 @@ resource "vault_password_policy" "strict" {
   policy    = <<POLICY
     length = 32
     rule "charset" {
-      charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+      charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
       min-chars = 4
     }
 POLICY

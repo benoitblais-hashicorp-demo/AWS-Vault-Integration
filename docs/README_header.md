@@ -8,6 +8,7 @@ This demo showcases the power of HashiCorp Vault in centralizing and automating 
 
 ## Features
 
+* **Machine Identity (AWS IAM Auth)**: Seamless, secure authentication to Vault leveraging native AWS EC2 IAM Instance Profiles—eliminating the need to bootstrap servers with secret tokens.
 * **Vault OS Secrets Engine**: Dynamic, time-to-live (TTL) bound SSH credentials for EC2 instances.
 * **Vault Database Secrets Engine**: Ephemeral PostgreSQL database credentials to ensure zero-trust database access.
 * **Vault PKI (Public & Private)**: Automated ACME Let's Encrypt certificate generation for public ALB endpoints via Route53 DNS challenges, and Private Root CA initialization for End-to-End Encryption between the Application Load Balancer and specific EC2 workloads.
@@ -29,14 +30,16 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
 
 1. **Zero Trust Security**: Eliminates static, long-lived SSH keys and database passwords.
 2. **Automated Certificate Lifecycle**: Drastically reduces the operational overhead of PKI renewal and provisioning.
-3. **Standardization**: Illustrates the shift from disparate, manual AWS resource creation to modular, scalable Terraform code managing Vault integrations seamlessly.
+3. **Machine Identity Integration**: Removes the "Secret Zero" problem by using innate cloud identities (AWS IAM) for seamless, passwordless Vault authentication from the EC2 instance.
+4. **Standardization**: Illustrates the shift from disparate, manual AWS resource creation to modular, scalable Terraform code managing Vault integrations seamlessly.
 
 ## How to Conduct the Demo
 
 1. **Showcase the Web App:**
    Navigate to the `website_url` output (e.g. `https://web-dynamic.benoit-blais.sbx.hashidemos.io`) to show the secured application running correctly with valid Let's Encrypt certificates.
 2. **Demonstrate Dynamic OS Access:**
-   * In the Vault UI or via CLI, request a dynamic credential for the Linux admin user: `vault read -namespace=demo_os_secret os/hosts/web-dynamic/accounts/linuxadmin/creds`
+   * In the Vault UI, navigate to the `demo_os_secret` namespace to show the OS secret engine mount path and the managed host.
+   * From the Vault CLI, request a dynamic credential for the Linux admin user: `vault read os/hosts/web-dynamic/accounts/linuxadmin/creds`
    * Retrieve the generated username and one-time password.
    * SSH into the EC2 instance using the public IP and authenticate with this temporary credential.
 3. **Demonstrate Automated Certificate Rotation:**

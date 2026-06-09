@@ -492,7 +492,7 @@ resource "vault_os_secret_backend_host" "web_dynamic" {
   password_policy = vault_password_policy.strict.name
 
   lifecycle {
-    replace_triggered_by = [module.web_dynamic.id]
+    replace_triggered_by = [time_sleep.wait_for_web_dynamic]
   }
 }
 
@@ -508,7 +508,7 @@ resource "vault_os_secret_backend_account" "direct" {
   rotation_period = 300 # Aggressive 5-minute rotation for demo visibility
 
   lifecycle {
-    replace_triggered_by = [module.web_dynamic.id]
+    replace_triggered_by = [time_sleep.wait_for_web_dynamic]
   }
 }
 
@@ -526,7 +526,7 @@ resource "vault_os_secret_backend_account" "child" {
   depends_on         = [vault_os_secret_backend_account.direct]
 
   lifecycle {
-    replace_triggered_by = [module.web_dynamic.id]
+    replace_triggered_by = [time_sleep.wait_for_web_dynamic]
   }
 }
 

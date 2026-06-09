@@ -48,14 +48,14 @@ module "web_dynamic_sg" {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      description = "SSH from Vault Server"
+      description = "Access from external Vault server"
       cidr_blocks = "${var.vault_server_ip}/32"
     },
     {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      description = "SSH from Admin Laptop"
+      description = "Access from Admin Laptop for Demo Verification"
       cidr_blocks = var.admin_laptop_ip != "" ? var.admin_laptop_ip : "127.0.0.1/32"
     }
   ]
@@ -177,11 +177,23 @@ resource "vault_pki_external_ca_secret_backend_role" "web_cert_role" {
 # Fetch the existing Route 53 zone for DNS records
 
 # Initiate the ACME Certificate Order with Let's Encrypt via Vault
+resource "time_rotating" "acme_cert" {
+  rotation_days = 30
+
+  triggers = {
+    force_rotation = var.force_cert_rotation
+  }
+}
+
 resource "vault_pki_external_ca_secret_backend_order" "web" {
   namespace   = vault_namespace.demo_pki.path_fq
   mount       = vault_mount.pki_ext_ca.path
   role_name   = vault_pki_external_ca_secret_backend_role.web_cert_role.name
   identifiers = ["web-dynamic.${var.public_hosted_zone}"]
+
+  lifecycle {
+    replace_triggered_by = [time_rotating.acme_cert]
+  }
 }
 
 # Retrieve the DNS-01 challenge instructions from Vault
@@ -298,17 +310,37 @@ resource "vault_pki_secret_backend_role" "internal_web" {
   generate_lease     = true
 }
 
-# 4. Mint a Certificate directly for the EC2 Instance using the Internal Role
-resource "vault_pki_secret_backend_cert" "web_internal" {
-  depends_on = [vault_pki_secret_backend_role.internal_web]
-  namespace  = vault_namespace.demo_pki.path_fq
-  backend    = vault_mount.pki_internal.path
-
-  name        = vault_pki_secret_backend_role.internal_web.name
-  common_name = "web-dynamic.${var.private_hosted_zone}"
-  ttl         = "86400"
+# 4. AWS Authentication for Vault Agent
+# ------------------------------------------------------------------------------
+resource "vault_policy" "agent_pki" {
+  namespace = vault_namespace.demo_pki.path_fq
+  name      = "agent-pki-policy"
+  policy    = <<POLICY
+path "pki-internal/issue/internal-web-role" {
+  capabilities = ["update"]
+}
+POLICY
 }
 
+resource "vault_auth_backend" "aws" {
+  namespace = vault_namespace.demo_pki.path_fq
+  type      = "aws"
+}
+
+resource "vault_aws_auth_backend_client" "aws" {
+  namespace = vault_namespace.demo_pki.path_fq
+  backend   = vault_auth_backend.aws.path
+}
+
+resource "vault_aws_auth_backend_role" "web_agent" {
+  namespace                = vault_namespace.demo_pki.path_fq
+  backend                  = vault_auth_backend.aws.path
+  role                     = "web-agent-role"
+  auth_type                = "iam"
+  bound_iam_principal_arns = [aws_iam_role.ssm_role_dynamic.arn]
+  resolve_aws_unique_ids   = false
+  token_policies           = ["default", vault_policy.agent_pki.name]
+}
 
 # Map this directly to the Private IP of our Web Server EC2 instance
 resource "aws_route53_record" "web_internal_dynamic" {
@@ -353,16 +385,15 @@ resource "aws_iam_instance_profile" "ssm_profile_dynamic" {
 
 # Generate passwords for EC2 OS users natively in Terraform to bootstrap the Vault OS Secret Engine
 resource "random_password" "os_linuxadmin_password_dynamic" {
-  length  = 32
-  special = true
-  # Exclude characters that could cause shell evaluation issues or password parsing problems
-  override_special = "!#%&*()-_=+[]{}<>"
+  length           = 32
+  special          = true
+  override_special = "-_"
 }
 
 resource "random_password" "os_appuser_password_dynamic" {
   length           = 32
   special          = true
-  override_special = "!#%&*()-_=+[]{}<>"
+  override_special = "-_"
 }
 
 # EC2 Instance utilizing official AWS module
@@ -384,9 +415,11 @@ module "web_dynamic" {
     db_password        = aws_db_instance.db_dynamic.password
     linuxadmin_initial = random_password.os_linuxadmin_password_dynamic.result
     appuser_initial    = random_password.os_appuser_password_dynamic.result
-    # Passing the Vault Internal PKI certificates securely into the startup script
-    tls_cert        = vault_pki_secret_backend_cert.web_internal.certificate
-    tls_private_key = vault_pki_secret_backend_cert.web_internal.private_key
+    # Passing Vault config to the EC2 so Vault Agent can authenticate via AWS IAM and auto-rotate internal certs
+    vault_address = var.vault_address
+    pki_namespace = vault_namespace.demo_pki.path_fq
+    aws_auth_path = vault_auth_backend.aws.path
+    private_zone  = var.private_hosted_zone
   })
   user_data_replace_on_change = true
 
@@ -419,7 +452,7 @@ resource "vault_password_policy" "strict" {
   policy    = <<POLICY
     length = 32
     rule "charset" {
-      charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+      charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
       min-chars = 4
     }
 POLICY
@@ -464,6 +497,10 @@ resource "vault_os_secret_backend_host" "web_dynamic" {
   address         = module.web_dynamic.public_ip
   port            = 22
   password_policy = vault_password_policy.strict.name
+
+  lifecycle {
+    replace_triggered_by = [time_sleep.wait_for_web_dynamic]
+  }
 }
 
 # Register Admin user to Vault so it manages the password lifecycle
@@ -476,6 +513,10 @@ resource "vault_os_secret_backend_account" "direct" {
   username        = "linuxadmin"
   password_wo     = random_password.os_linuxadmin_password_dynamic.result
   rotation_period = 300 # Aggressive 5-minute rotation for demo visibility
+
+  lifecycle {
+    replace_triggered_by = [time_sleep.wait_for_web_dynamic]
+  }
 }
 
 # Register Application child user under the admin account lifecycle
@@ -490,6 +531,10 @@ resource "vault_os_secret_backend_account" "child" {
   verify_connection  = false
   parent_account_ref = vault_os_secret_backend_account.direct.name
   depends_on         = [vault_os_secret_backend_account.direct]
+
+  lifecycle {
+    replace_triggered_by = [time_sleep.wait_for_web_dynamic]
+  }
 }
 
 # Vault ACL Policy allowing read operations on OS secrets

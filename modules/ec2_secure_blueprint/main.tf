@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------------------
 
 resource "aws_iam_role" "this" {
-  name = "$${var.name}_ssm_role"
+  name = "${var.name}_ssm_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -25,7 +25,7 @@ resource "aws_iam_role_policy_attachment" "ssm_core" {
 }
 
 resource "aws_iam_instance_profile" "this" {
-  name = "$${var.name}_ssm_profile"
+  name = "${var.name}_ssm_profile"
   role = aws_iam_role.this.name
 }
 
@@ -37,8 +37,8 @@ module "sg" {
   source  = "terraform-aws-modules/security-group/aws"
   version = "~> 5.0"
 
-  name        = "$${var.name}-sg"
-  description = "Security group for Blueprint EC2 instance $${var.name}"
+  name        = "${var.name}-sg"
+  description = "Security group for Blueprint EC2 instance ${var.name}"
   vpc_id      = var.vpc_id
 
   ingress_with_cidr_blocks              = var.ingress_with_cidr_blocks
@@ -78,12 +78,12 @@ set -e
 
 # Setup Secure OS Users
 useradd -m -s /bin/bash linuxadmin
-echo '$${random_password.os_linuxadmin_password.result}' | passwd --stdin linuxadmin
+echo '${random_password.os_linuxadmin_password.result}' | passwd --stdin linuxadmin
 usermod -aG wheel linuxadmin
 echo "linuxadmin ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/linuxadmin
 
 useradd -m -s /bin/bash appuser
-echo '$${random_password.os_appuser_password.result}' | passwd --stdin appuser
+echo '${random_password.os_appuser_password.result}' | passwd --stdin appuser
 
 # Enable Password Authentication for SSH so Vault can connect
 cat << 'EOF_SSH' > /etc/ssh/sshd_config.d/00-force-password-auth.conf
@@ -101,7 +101,7 @@ sed -i 's/^[#]*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/s
 systemctl restart sshd
 
 # --- Execute Custom Application User Data ---
-$${var.custom_user_data}
+${var.custom_user_data}
 EOT
 
   user_data_replace_on_change = true
@@ -182,9 +182,9 @@ resource "vault_os_secret_backend_account" "child" {
 
 resource "vault_policy" "host_readers" {
   namespace = var.vault_namespace
-  name      = "policy-os-$${var.name}-reader"
+  name      = "policy-os-${var.name}-reader"
   policy    = <<POLICY
-path "$${var.vault_os_mount_path}/hosts/$${var.name}/accounts/*/creds" {
+path "${var.vault_os_mount_path}/hosts/${var.name}/accounts/*/creds" {
   capabilities = ["read"]
 }
 POLICY

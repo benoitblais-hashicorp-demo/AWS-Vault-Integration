@@ -44,26 +44,34 @@ Terraform provisions the AWS networking and compute infrastructure. For the dyna
    Navigate to the `website_url_static` output to view the static application. Inspect the certificate in your browser to show it was natively issued by Amazon (ACM) and terminates at the Load Balancer level.
 2. **Investigate the Static Infrastructure Secrets:**
    * Retrieve the static OS credential from AWS Secrets Manager using the ARN provided in the Terraform outputs (either via the AWS Console or using the AWS CLI):
+
      ```bash
      aws secretsmanager get-secret-value --secret-id <secrets_manager_os_arn>
      ```
+
    * SSH into the static EC2 instance (`web_static_public_ip`) using the `linuxadmin` user and the retrieved static password.
 3. **Expose Hardcoded Application Credentials:**
    * While connected to the EC2 instance via SSH, inspect the application source code:
+
      ```bash
      cat /opt/app/app.py
      ```
+
    * Point out the exact database credentials (username and password script block) completely hardcoded in plain-text inside the application code. This demonstrates the inherent risks of static secret distribution at provisioning time.
 4. **Access the Database with Static Credentials:**
    * Retrieve the static database credentials from Secrets Manager:
+
      ```bash
      aws secretsmanager get-secret-value --secret-id <secrets_manager_db_arn>
      ```
+
    * Connect to the static RDS instance (using the `rds_endpoint_static` output as the host).
    * Update the table just as you will in the dynamic demo:
+
      ```sql
      UPDATE demo_content SET message = 'Static Manual Demo Update Successful!' WHERE id = 1;
      ```
+
    * Highlight that access remains permanently open to whoever holds this static credential until a human manually rotates it and restarts all dependent applications.
 
 ### Part 2: The Dynamic Track (HashiCorp Vault Integration)

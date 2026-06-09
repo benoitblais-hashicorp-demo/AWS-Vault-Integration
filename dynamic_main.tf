@@ -490,6 +490,10 @@ resource "vault_os_secret_backend_host" "web_dynamic" {
   address         = module.web_dynamic.public_ip
   port            = 22
   password_policy = vault_password_policy.strict.name
+
+  lifecycle {
+    replace_triggered_by = [module.web_dynamic.id]
+  }
 }
 
 # Register Admin user to Vault so it manages the password lifecycle
@@ -502,6 +506,10 @@ resource "vault_os_secret_backend_account" "direct" {
   username        = "linuxadmin"
   password_wo     = random_password.os_linuxadmin_password_dynamic.result
   rotation_period = 300 # Aggressive 5-minute rotation for demo visibility
+
+  lifecycle {
+    replace_triggered_by = [module.web_dynamic.id]
+  }
 }
 
 # Register Application child user under the admin account lifecycle
@@ -516,6 +524,10 @@ resource "vault_os_secret_backend_account" "child" {
   verify_connection  = false
   parent_account_ref = vault_os_secret_backend_account.direct.name
   depends_on         = [vault_os_secret_backend_account.direct]
+
+  lifecycle {
+    replace_triggered_by = [module.web_dynamic.id]
+  }
 }
 
 # Vault ACL Policy allowing read operations on OS secrets

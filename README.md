@@ -188,6 +188,18 @@ The following requirements are needed by this module:
 
 The following Modules are called:
 
+### <a name="module_alb_dynamic"></a> [alb\_dynamic](#module\_alb\_dynamic)
+
+Source: app.terraform.io/benoitblais-hashicorp/alb/aws
+
+Version: 0.0.1
+
+### <a name="module_alb_dynamic_sg"></a> [alb\_dynamic\_sg](#module\_alb\_dynamic\_sg)
+
+Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
+
+Version: 0.0.2
+
 ### <a name="module_alb_static"></a> [alb\_static](#module\_alb\_static)
 
 Source: terraform-aws-modules/alb/aws
@@ -200,6 +212,12 @@ Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
 
 Version: 0.0.2
 
+### <a name="module_db_dynamic_sg"></a> [db\_dynamic\_sg](#module\_db\_dynamic\_sg)
+
+Source: terraform-aws-modules/security-group/aws
+
+Version: ~> 5.0
+
 ### <a name="module_db_static_sg"></a> [db\_static\_sg](#module\_db\_static\_sg)
 
 Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
@@ -211,6 +229,18 @@ Version: 0.0.2
 Source: app.terraform.io/benoitblais-hashicorp/vpc/aws
 
 Version: 0.0.1
+
+### <a name="module_web_dynamic"></a> [web\_dynamic](#module\_web\_dynamic)
+
+Source: terraform-aws-modules/ec2-instance/aws
+
+Version: ~> 5.6
+
+### <a name="module_web_dynamic_sg"></a> [web\_dynamic\_sg](#module\_web\_dynamic\_sg)
+
+Source: app.terraform.io/benoitblais-hashicorp/security-group/aws
+
+Version: 0.0.2
 
 ### <a name="module_web_static"></a> [web\_static](#module\_web\_static)
 
@@ -234,6 +264,12 @@ Description: (Required) The URL of your Vault instance.
 
 Type: `string`
 
+### <a name="input_vault_server_ip"></a> [vault\_server\_ip](#input\_vault\_server\_ip)
+
+Description: (Required) The public IP address of the Vault server allowed to access the RDS database.
+
+Type: `string`
+
 ### <a name="input_vault_token"></a> [vault\_token](#input\_vault\_token)
 
 Description: (Required) Vault token with administrative privileges.
@@ -243,6 +279,14 @@ Type: `string`
 ## Optional Inputs
 
 The following input variables are optional (have default values):
+
+### <a name="input_acme_email"></a> [acme\_email](#input\_acme\_email)
+
+Description: (Optional) Email address for Let's Encrypt ACME account registration.
+
+Type: `string`
+
+Default: `"benoit.blais@ibm.com"`
 
 ### <a name="input_admin_laptop_ip"></a> [admin\_laptop\_ip](#input\_admin\_laptop\_ip)
 
@@ -259,6 +303,14 @@ Description: (Optional) The AWS region to deploy resources into.
 Type: `string`
 
 Default: `"ca-central-1"`
+
+### <a name="input_force_cert_rotation"></a> [force\_cert\_rotation](#input\_force\_cert\_rotation)
+
+Description: (Optional) A trigger to forcefully rotate the ALB Let's Encrypt certificate prematurely during demonstrations. Change this value to force rotation.
+
+Type: `string`
+
+Default: `"1"`
 
 ### <a name="input_private_hosted_zone"></a> [private\_hosted\_zone](#input\_private\_hosted\_zone)
 
@@ -288,34 +340,81 @@ Default: `"10.0.0.0/16"`
 
 The following resources are used by this module:
 
+- [aws_acm_certificate.production_cert](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate) (resource)
 - [aws_acm_certificate.static_cert](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate) (resource)
 - [aws_acm_certificate_validation.web_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate_validation) (resource)
+- [aws_db_instance.db_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance) (resource)
 - [aws_db_instance.db_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance) (resource)
+- [aws_db_subnet_group.dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group) (resource)
 - [aws_db_subnet_group.static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group) (resource)
+- [aws_iam_instance_profile.ssm_profile_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) (resource)
 - [aws_iam_instance_profile.static_profile](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) (resource)
+- [aws_iam_role.ssm_role_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) (resource)
 - [aws_iam_role.static_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) (resource)
 - [aws_iam_role_policy_attachment.secrets_manager_read](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) (resource)
+- [aws_iam_role_policy_attachment.ssm_core_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) (resource)
 - [aws_iam_role_policy_attachment.ssm_core_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) (resource)
+- [aws_lb_target_group_attachment.web_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment) (resource)
 - [aws_lb_target_group_attachment.web_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment) (resource)
+- [aws_route53_record.acme_challenge_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
 - [aws_route53_record.acme_challenge_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
+- [aws_route53_record.web_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
+- [aws_route53_record.web_internal_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
 - [aws_route53_record.web_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) (resource)
 - [aws_secretsmanager_secret.db_password](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) (resource)
 - [aws_secretsmanager_secret.os_linuxadmin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) (resource)
 - [aws_secretsmanager_secret_version.db_password](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) (resource)
 - [aws_secretsmanager_secret_version.os_linuxadmin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) (resource)
 - [random_id.static_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) (resource)
+- [random_password.db_password_dynamic](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
 - [random_password.db_password_static](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
+- [random_password.os_appuser_password_dynamic](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
 - [random_password.os_appuser_password_static](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
+- [random_password.os_linuxadmin_password_dynamic](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
 - [random_password.os_linuxadmin_password_static](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) (resource)
+- [time_rotating.acme_cert](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/rotating) (resource)
+- [time_sleep.wait_for_web_dynamic](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/sleep) (resource)
+- [vault_auth_backend.aws](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/auth_backend) (resource)
+- [vault_aws_auth_backend_client.aws](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/aws_auth_backend_client) (resource)
+- [vault_aws_auth_backend_role.web_agent](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/aws_auth_backend_role) (resource)
+- [vault_database_secret_backend_connection.postgres](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/database_secret_backend_connection) (resource)
+- [vault_database_secret_backend_role.webapp](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/database_secret_backend_role) (resource)
+- [vault_mount.db](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/mount) (resource)
+- [vault_mount.os_mount](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/mount) (resource)
+- [vault_mount.pki_ext_ca](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/mount) (resource)
+- [vault_mount.pki_internal](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/mount) (resource)
+- [vault_namespace.db](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/namespace) (resource)
+- [vault_namespace.demo](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/namespace) (resource)
+- [vault_namespace.demo_pki](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/namespace) (resource)
+- [vault_os_secret_backend.os_backend](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend) (resource)
+- [vault_os_secret_backend_account.child](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_account) (resource)
+- [vault_os_secret_backend_account.direct](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_account) (resource)
+- [vault_os_secret_backend_host.web_dynamic](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_host) (resource)
+- [vault_password_policy.strict](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/password_policy) (resource)
+- [vault_pki_external_ca_secret_backend_acme_account.lets_encrypt](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_acme_account) (resource)
+- [vault_pki_external_ca_secret_backend_order.prod](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order) (resource)
+- [vault_pki_external_ca_secret_backend_order_certificate.web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order_certificate) (resource)
+- [vault_pki_external_ca_secret_backend_order_challenge_fulfilled.dns](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order_challenge_fulfilled) (resource)
+- [vault_pki_external_ca_secret_backend_role.web_cert_role](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_role) (resource)
+- [vault_pki_secret_backend_role.internal_web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_role) (resource)
+- [vault_pki_secret_backend_root_cert.internal_root](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_root_cert) (resource)
+- [vault_policy.agent_pki](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) (resource)
+- [vault_policy.host_readers](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) (resource)
+- [vault_policy.webapp_db_policy](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) (resource)
 - [aws_ami.rhel9](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ami) (data source)
 - [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) (data source)
 - [aws_iam_policy_document.static_assume_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) (data source)
 - [aws_route53_zone.demo](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route53_zone) (data source)
 - [aws_route53_zone.internal](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route53_zone) (data source)
+- [vault_pki_external_ca_secret_backend_order_challenge.dns](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/pki_external_ca_secret_backend_order_challenge) (data source)
 
 ## Outputs
 
 The following outputs are exported:
+
+### <a name="output_rds_endpoint"></a> [rds\_endpoint](#output\_rds\_endpoint)
+
+Description: The endpoint of the RDS instance
 
 ### <a name="output_rds_endpoint_static"></a> [rds\_endpoint\_static](#output\_rds\_endpoint\_static)
 
@@ -329,9 +428,17 @@ Description: The ARN of the AWS Secret containing the static Database passwords
 
 Description: The ARN of the AWS Secret containing the static OS passwords
 
+### <a name="output_web_dynamic_public_ip"></a> [web\_dynamic\_public\_ip](#output\_web\_dynamic\_public\_ip)
+
+Description: The public IP of the web server
+
 ### <a name="output_web_static_public_ip"></a> [web\_static\_public\_ip](#output\_web\_static\_public\_ip)
 
 Description: The public IP of the Static web server
+
+### <a name="output_website_url"></a> [website\_url](#output\_website\_url)
+
+Description: The final secured URL of your application
 
 ### <a name="output_website_url_static"></a> [website\_url\_static](#output\_website\_url\_static)
 

@@ -143,9 +143,8 @@ resource "vault_pki_external_ca_secret_backend_acme_account" "lets_encrypt" {
   mount     = vault_mount.pki_ext_ca.path
 
   name = "lets-encrypt-account"
-  # Let's Encrypt Staging Directory (Recommended while testing to avoid rate limits)
-  # Change to "https://acme-v02.api.letsencrypt.org/directory" for production certs
-  directory_url  = "https://acme-staging-v02.api.letsencrypt.org/directory"
+  # Let's Encrypt Production Directory
+  directory_url  = "https://acme-v02.api.letsencrypt.org/directory"
   email_contacts = [var.acme_email]
   key_type       = "rsa-2048"
 }

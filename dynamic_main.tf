@@ -223,6 +223,10 @@ resource "aws_route53_record" "acme_challenge_dynamic" {
   type    = "TXT"
   ttl     = 60
   records = [data.vault_pki_external_ca_secret_backend_order_challenge.dns.key_authorization]
+  
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Notify Let's Encrypt (Via Vault) that the record is published
@@ -235,6 +239,10 @@ resource "vault_pki_external_ca_secret_backend_order_challenge_fulfilled" "dns" 
   order_id       = vault_pki_external_ca_secret_backend_order.prod.order_id
   challenge_type = "dns-01"
   identifier     = "web-dynamic.${var.public_hosted_zone}"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Fetch the Final Signed Certificate securely from Vault out of the successful order
@@ -245,6 +253,10 @@ resource "vault_pki_external_ca_secret_backend_order_certificate" "web" {
   mount     = vault_pki_external_ca_secret_backend_order.prod.mount
   role_name = vault_pki_external_ca_secret_backend_order.prod.role_name
   order_id  = vault_pki_external_ca_secret_backend_order.prod.order_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Upload the Let's Encrypt Certificate directly into AWS Certificate Manager for the ALB

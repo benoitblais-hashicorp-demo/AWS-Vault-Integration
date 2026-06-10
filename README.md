@@ -340,8 +340,8 @@ Default: `"10.0.0.0/16"`
 
 The following resources are used by this module:
 
+- [aws_acm_certificate.dynamic_cert](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate) (resource)
 - [aws_acm_certificate.static_cert](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate) (resource)
-- [aws_acm_certificate.web_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate) (resource)
 - [aws_acm_certificate_validation.web_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate_validation) (resource)
 - [aws_db_instance.db_dynamic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance) (resource)
 - [aws_db_instance.db_static](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance) (resource)
@@ -392,7 +392,7 @@ The following resources are used by this module:
 - [vault_os_secret_backend_host.web_dynamic](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/os_secret_backend_host) (resource)
 - [vault_password_policy.strict](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/password_policy) (resource)
 - [vault_pki_external_ca_secret_backend_acme_account.lets_encrypt](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_acme_account) (resource)
-- [vault_pki_external_ca_secret_backend_order.web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order) (resource)
+- [vault_pki_external_ca_secret_backend_order.prod](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order) (resource)
 - [vault_pki_external_ca_secret_backend_order_certificate.web](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order_certificate) (resource)
 - [vault_pki_external_ca_secret_backend_order_challenge_fulfilled.dns](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_order_challenge_fulfilled) (resource)
 - [vault_pki_external_ca_secret_backend_role.web_cert_role](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_external_ca_secret_backend_role) (resource)

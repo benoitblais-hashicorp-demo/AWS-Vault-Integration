@@ -96,7 +96,7 @@ module "alb_dynamic" {
     https-443 = {
       port            = 443
       protocol        = "HTTPS"
-      certificate_arn = aws_acm_certificate.dynamic_cert.arn
+      certificate_arn = aws_acm_certificate.production_cert.arn
       forward = {
         target_group_key = "web-dynamic-tg"
       }
@@ -260,7 +260,7 @@ resource "vault_pki_external_ca_secret_backend_order_certificate" "web" {
 }
 
 # Upload the Let's Encrypt Certificate directly into AWS Certificate Manager for the ALB
-resource "aws_acm_certificate" "dynamic_cert" {
+resource "aws_acm_certificate" "production_cert" {
   private_key       = vault_pki_external_ca_secret_backend_order_certificate.web.private_key
   certificate_body  = vault_pki_external_ca_secret_backend_order_certificate.web.certificate
   certificate_chain = join("\n", vault_pki_external_ca_secret_backend_order_certificate.web.ca_chain)

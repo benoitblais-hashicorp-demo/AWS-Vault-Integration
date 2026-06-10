@@ -26,3 +26,9 @@ variable "public_hosted_zone" {
   type        = string
   default     = "benoit-blais.sbx.hashidemos.io"
 }
+
+variable "admin_laptop_ip" {
+  description = "(Optional) Public IP of your local laptop allowed to connect directly to the RDS instance for demo verification. Needs /32 suffix."
+  type        = string
+  default     = "" # Replace with your IP e.g. "123.45.67.89/32"
+}

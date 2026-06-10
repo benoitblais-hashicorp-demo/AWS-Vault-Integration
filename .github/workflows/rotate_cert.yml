@@ -47,9 +47,10 @@ jobs:
       - name: Create HCP Terraform Run
         uses: hashicorp/tfc-workflows-github/actions/create-run@v1.3.2
         id: create-run
+        env:
+          # Using TF_VAR_ prefix allows Terraform Cloud to pick this up natively
+          TF_VAR_force_cert_rotation: "${{ github.run_id }}-${{ github.run_number }}"
         with:
           workspace: ${{ env.TF_WORKSPACE }}
           configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
           message: "Certificate Rotation: ${{ github.event.inputs.rotation_reason }}"
-          variables: |
-            force_cert_rotation="${{ github.run_id }}-${{ github.run_number }}"

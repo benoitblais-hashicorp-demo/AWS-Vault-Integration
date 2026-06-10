@@ -14,9 +14,3 @@ variable "acme_email" {
   type        = string
   default     = "benoit.blais@ibm.com"
 }
-
-variable "admin_laptop_ip" {
-  description = "(Optional) Public IP of your local laptop allowed to connect directly to the RDS instance for demo verification. Needs /32 suffix."
-  type        = string
-  default     = "" # Replace with your IP e.g. "123.45.67.89/32"
-}

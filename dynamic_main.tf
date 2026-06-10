@@ -155,9 +155,9 @@ resource "vault_pki_external_ca_secret_backend_acme_account" "lets_encrypt" {
 
 # 3. Create the Role mapped to the allowed domain
 resource "vault_pki_external_ca_secret_backend_role" "web_cert_role" {
-  namespace         = vault_namespace.demo_pki.path_fq
-  mount             = vault_mount.pki_ext_ca.path
-  
+  namespace = vault_namespace.demo_pki.path_fq
+  mount     = vault_mount.pki_ext_ca.path
+
   # Change the role name so Terraform is forced to create a fresh one mapping to the new ACME account
   name              = "web-domain-role-prod"
   acme_account_name = vault_pki_external_ca_secret_backend_acme_account.lets_encrypt.name

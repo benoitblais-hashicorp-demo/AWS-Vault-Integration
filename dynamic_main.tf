@@ -157,7 +157,9 @@ resource "vault_pki_external_ca_secret_backend_acme_account" "lets_encrypt" {
 resource "vault_pki_external_ca_secret_backend_role" "web_cert_role" {
   namespace         = vault_namespace.demo_pki.path_fq
   mount             = vault_mount.pki_ext_ca.path
-  name              = "web-domain-role"
+  
+  # Change the role name so Terraform is forced to create a fresh one mapping to the new ACME account
+  name              = "web-domain-role-prod"
   acme_account_name = vault_pki_external_ca_secret_backend_acme_account.lets_encrypt.name
 
   # List the exact domain you wish to validate 
@@ -175,6 +177,10 @@ resource "vault_pki_external_ca_secret_backend_role" "web_cert_role" {
 
   csr_generate_key_type     = "rsa-2048"
   csr_identifier_population = "cn_first"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Fetch the existing Route 53 zone for DNS records

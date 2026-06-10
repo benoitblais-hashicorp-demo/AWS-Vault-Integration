@@ -223,7 +223,7 @@ resource "aws_route53_record" "acme_challenge_dynamic" {
   type    = "TXT"
   ttl     = 60
   records = [data.vault_pki_external_ca_secret_backend_order_challenge.dns.key_authorization]
-  
+
   lifecycle {
     create_before_destroy = true
   }

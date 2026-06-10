@@ -244,6 +244,14 @@ Type: `string`
 
 The following input variables are optional (have default values):
 
+### <a name="input_admin_laptop_ip"></a> [admin\_laptop\_ip](#input\_admin\_laptop\_ip)
+
+Description: (Optional) Public IP of your local laptop allowed to connect directly to the RDS instance for demo verification. Needs /32 suffix.
+
+Type: `string`
+
+Default: `""`
+
 ### <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region)
 
 Description: (Optional) The AWS region to deploy resources into.

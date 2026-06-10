@@ -96,7 +96,7 @@ module "alb_dynamic" {
     https-443 = {
       port            = 443
       protocol        = "HTTPS"
-      certificate_arn = aws_acm_certificate.web_dynamic.arn
+      certificate_arn = aws_acm_certificate.dynamic_cert.arn
       forward = {
         target_group_key = "web-dynamic-tg"
       }
@@ -194,23 +194,24 @@ resource "time_rotating" "acme_cert" {
   }
 }
 
-resource "vault_pki_external_ca_secret_backend_order" "web" {
+resource "vault_pki_external_ca_secret_backend_order" "prod" {
   namespace   = vault_namespace.demo_pki.path_fq
   mount       = vault_mount.pki_ext_ca.path
   role_name   = vault_pki_external_ca_secret_backend_role.web_cert_role.name
   identifiers = ["web-dynamic.${var.public_hosted_zone}"]
 
   lifecycle {
-    replace_triggered_by = [time_rotating.acme_cert]
+    replace_triggered_by  = [time_rotating.acme_cert]
+    create_before_destroy = true
   }
 }
 
 # Retrieve the DNS-01 challenge instructions from Vault
 data "vault_pki_external_ca_secret_backend_order_challenge" "dns" {
   namespace      = vault_namespace.demo_pki.path_fq
-  mount          = vault_pki_external_ca_secret_backend_order.web.mount
-  role_name      = vault_pki_external_ca_secret_backend_order.web.role_name
-  order_id       = vault_pki_external_ca_secret_backend_order.web.order_id
+  mount          = vault_pki_external_ca_secret_backend_order.prod.mount
+  role_name      = vault_pki_external_ca_secret_backend_order.prod.role_name
+  order_id       = vault_pki_external_ca_secret_backend_order.prod.order_id
   challenge_type = "dns-01"
   identifier     = "web-dynamic.${var.public_hosted_zone}"
 }
@@ -229,9 +230,9 @@ resource "vault_pki_external_ca_secret_backend_order_challenge_fulfilled" "dns" 
   depends_on = [aws_route53_record.acme_challenge_dynamic]
 
   namespace      = vault_namespace.demo_pki.path_fq
-  mount          = vault_pki_external_ca_secret_backend_order.web.mount
-  role_name      = vault_pki_external_ca_secret_backend_order.web.role_name
-  order_id       = vault_pki_external_ca_secret_backend_order.web.order_id
+  mount          = vault_pki_external_ca_secret_backend_order.prod.mount
+  role_name      = vault_pki_external_ca_secret_backend_order.prod.role_name
+  order_id       = vault_pki_external_ca_secret_backend_order.prod.order_id
   challenge_type = "dns-01"
   identifier     = "web-dynamic.${var.public_hosted_zone}"
 }
@@ -241,19 +242,23 @@ resource "vault_pki_external_ca_secret_backend_order_certificate" "web" {
   depends_on = [vault_pki_external_ca_secret_backend_order_challenge_fulfilled.dns]
 
   namespace = vault_namespace.demo_pki.path_fq
-  mount     = vault_pki_external_ca_secret_backend_order.web.mount
-  role_name = vault_pki_external_ca_secret_backend_order.web.role_name
-  order_id  = vault_pki_external_ca_secret_backend_order.web.order_id
+  mount     = vault_pki_external_ca_secret_backend_order.prod.mount
+  role_name = vault_pki_external_ca_secret_backend_order.prod.role_name
+  order_id  = vault_pki_external_ca_secret_backend_order.prod.order_id
 }
 
 # Upload the Let's Encrypt Certificate directly into AWS Certificate Manager for the ALB
-resource "aws_acm_certificate" "web_dynamic" {
+resource "aws_acm_certificate" "dynamic_cert" {
   private_key       = vault_pki_external_ca_secret_backend_order_certificate.web.private_key
   certificate_body  = vault_pki_external_ca_secret_backend_order_certificate.web.certificate
   certificate_chain = join("\n", vault_pki_external_ca_secret_backend_order_certificate.web.ca_chain)
 
   tags = {
     Name = "vault-acme-cert"
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 

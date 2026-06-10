@@ -142,11 +142,15 @@ resource "vault_pki_external_ca_secret_backend_acme_account" "lets_encrypt" {
   namespace = vault_namespace.demo_pki.path_fq
   mount     = vault_mount.pki_ext_ca.path
 
-  name = "lets-encrypt-account"
+  name = "lets-encrypt-prod"
   # Let's Encrypt Production Directory
   directory_url  = "https://acme-v02.api.letsencrypt.org/directory"
   email_contacts = [var.acme_email]
   key_type       = "rsa-2048"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # 3. Create the Role mapped to the allowed domain
